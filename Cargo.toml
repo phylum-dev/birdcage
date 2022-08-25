@@ -1,0 +1,10 @@
+[package]
+name = "birdcage"
+version = "0.1.0"
+description = "Cross-platform embeddable sandbox"
+authors = ["Phylum, Inc. <engineering@phylum.io>"]
+rust-version = "1.63.0"
+license = "LGPL-3.0"
+edition = "2021"
+
+[dependencies]
