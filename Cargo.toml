@@ -8,3 +8,7 @@ license = "LGPL-3.0"
 edition = "2021"
 
 [dependencies]
+landlock = { git = "https://github.com/cd-work/rust-landlock" }
+
+[dev-dependencies]
+tempfile = "3.3.0"
