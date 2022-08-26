@@ -30,10 +30,14 @@ use std::path::PathBuf;
 use crate::error::Error;
 #[cfg(target_os = "linux")]
 use crate::linux::Landlock;
+#[cfg(target_os = "macos")]
+use crate::macos::Seatbelt;
 
 mod error;
 #[cfg(target_os = "linux")]
 mod linux;
+#[cfg(target_os = "macos")]
+mod macos;
 
 /// Default platform sandbox.
 ///
@@ -41,6 +45,13 @@ mod linux;
 /// platform.
 #[cfg(target_os = "linux")]
 pub type Birdcage = Landlock;
+
+/// Default platform sandbox.
+///
+/// This type will automatically pick the default sandbox for each available
+/// platform.
+#[cfg(target_os = "macos")]
+pub type Birdcage = Seatbelt;
 
 pub trait Sandbox {
     /// Setup the sandboxing environment.

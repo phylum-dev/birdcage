@@ -1,5 +1,4 @@
 use std::fs;
-use std::io::Write;
 
 use birdcage::{Birdcage, Sandbox};
 use tempfile::NamedTempFile;
@@ -9,17 +8,17 @@ fn full_sandbox() {
     const FILE_CONTENT: &str = "expected content";
 
     // Create testfile.
-    let mut file = NamedTempFile::new().unwrap();
-    file.write_all(FILE_CONTENT.as_bytes()).unwrap();
+    let path = fs::canonicalize(NamedTempFile::new().unwrap()).unwrap();
+    fs::write(&path, FILE_CONTENT.as_bytes()).unwrap();
 
     // Ensure non-sandboxed read works.
-    let content = fs::read_to_string(file.path()).unwrap();
+    let content = fs::read_to_string(&path).unwrap();
     assert_eq!(content, FILE_CONTENT);
 
     // Activate our sandbox.
     Birdcage::new().unwrap().lock().unwrap();
 
     // Ensure sandboxed read is blocked.
-    let result = fs::read_to_string(file.path());
+    let result = fs::read_to_string(path);
     assert!(result.is_err());
 }

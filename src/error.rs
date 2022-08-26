@@ -1,7 +1,11 @@
 //! Sandboxing errors.
 
 use std::error::Error as StdError;
+#[cfg(target_os = "macos")]
+use std::ffi::OsString;
 use std::fmt::{self, Display, Formatter};
+#[cfg(target_os = "macos")]
+use std::io::Error as IoError;
 
 #[cfg(target_os = "linux")]
 use landlock::{PathFdError, RulesetError};
@@ -13,12 +17,18 @@ pub enum Error {
     #[cfg(target_os = "linux")]
     Ruleset(RulesetError),
 
-    /// Invalid Landlock rule path.
+    /// Invalid sandbox exception path.
     #[cfg(target_os = "linux")]
-    PathFd(PathFdError),
+    InvalidPath(PathFdError),
+    #[cfg(target_os = "macos")]
+    InvalidPath(OsString),
 
-    /// Platform lacks sandboxing support.
-    Unsupported,
+    /// I/O error.
+    #[cfg(target_os = "macos")]
+    Io(IoError),
+
+    /// Sandbox activation failed.
+    ActivationFailed(String),
 }
 
 impl StdError for Error {}
@@ -29,8 +39,14 @@ impl Display for Error {
             #[cfg(target_os = "linux")]
             Self::Ruleset(error) => write!(f, "landlock ruleset error: {error}"),
             #[cfg(target_os = "linux")]
-            Self::PathFd(error) => write!(f, "invalid path: {error}"),
-            Self::Unsupported => write!(f, "failed to initialize a sufficient sandbox"),
+            Self::InvalidPath(error) => write!(f, "invalid path: {error}"),
+            #[cfg(target_os = "macos")]
+            Self::InvalidPath(error) => write!(f, "invalid path: {error:?}"),
+            #[cfg(target_os = "macos")]
+            Self::Io(error) => write!(f, "input/output error: {error}"),
+            Self::ActivationFailed(error) => {
+                write!(f, "failed to initialize a sufficient sandbox: {error}")
+            },
         }
     }
 }
@@ -45,6 +61,20 @@ impl From<RulesetError> for Error {
 #[cfg(target_os = "linux")]
 impl From<PathFdError> for Error {
     fn from(error: PathFdError) -> Self {
-        Self::PathFd(error)
+        Self::InvalidPath(error)
+    }
+}
+
+#[cfg(target_os = "macos")]
+impl From<OsString> for Error {
+    fn from(error: OsString) -> Self {
+        Self::InvalidPath(error)
+    }
+}
+
+#[cfg(target_os = "macos")]
+impl From<IoError> for Error {
+    fn from(error: IoError) -> Self {
+        Self::Io(error)
     }
 }
