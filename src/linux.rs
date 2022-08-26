@@ -49,7 +49,7 @@ impl Sandbox for Landlock {
         if status.no_new_privs && status.ruleset == RulesetStatus::FullyEnforced {
             Ok(())
         } else {
-            Err(Error::PartialSupport)
+            Err(Error::Unsupported)
         }
     }
 }

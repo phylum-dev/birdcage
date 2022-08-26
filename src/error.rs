@@ -18,8 +18,7 @@ pub enum Error {
     PathFd(PathFdError),
 
     /// Platform lacks sandboxing support.
-    #[cfg(target_os = "linux")]
-    PartialSupport,
+    Unsupported,
 }
 
 impl StdError for Error {}
@@ -27,19 +26,23 @@ impl StdError for Error {}
 impl Display for Error {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
+            #[cfg(target_os = "linux")]
             Self::Ruleset(error) => write!(f, "landlock ruleset error: {error}"),
+            #[cfg(target_os = "linux")]
             Self::PathFd(error) => write!(f, "invalid path: {error}"),
-            Self::PartialSupport => write!(f, "failed to initialize a complete sandbox"),
+            Self::Unsupported => write!(f, "failed to initialize a sufficient sandbox"),
         }
     }
 }
 
+#[cfg(target_os = "linux")]
 impl From<RulesetError> for Error {
     fn from(error: RulesetError) -> Self {
         Self::Ruleset(error)
     }
 }
 
+#[cfg(target_os = "linux")]
 impl From<PathFdError> for Error {
     fn from(error: PathFdError) -> Self {
         Self::PathFd(error)
