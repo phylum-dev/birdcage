@@ -1,0 +1,41 @@
+name: Test
+
+on:
+  # Allow running this workflow manually from the Actions tab
+  workflow_dispatch:
+  pull_request:
+  push:
+  # Run weekly on the default branch to make sure it always builds with the latest rust release
+  schedule:
+    - cron: '30 5 * * 1'
+
+jobs:
+  test-matrix:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Test Stable
+        run: cargo test
+
+      - name: Test Oldstable
+        run: |
+          oldstable=$(cat Cargo.toml | grep rust-version | sed 's/.*"\(.*\)".*/\1/')
+          rustup toolchain install --profile minimal $oldstable
+          rustup default $oldstable
+          cargo test
+
+      - name: Clippy
+        run: |
+          rustup component add clippy
+          cargo clippy
+
+      - name : Rustfmt
+        run: |
+          rustup toolchain install nightly -c rustfmt
+          cargo +nightly fmt -- --check
