@@ -18,6 +18,14 @@ struct Cli {
     #[clap(short = 'w', long, value_name = "PATH", value_hint = ValueHint::AnyPath)]
     allow_write: Vec<PathBuf>,
 
+    /// Allowed read and execute paths.
+    #[clap(short = 'e', long, value_name = "PATH", value_hint = ValueHint::AnyPath)]
+    allow_execute: Vec<PathBuf>,
+
+    /// Allow networking.
+    #[clap(short = 'n', long)]
+    allow_networking: bool,
+
     /// Command to be executed in the sandbox.
     cmd: String,
 
@@ -36,6 +44,12 @@ fn main() -> Result<(), Box<dyn Error>> {
     }
     for path in cli.allow_write {
         birdcage.add_exception(Exception::Write(path))?;
+    }
+    for path in cli.allow_execute {
+        birdcage.add_exception(Exception::ReadAndExecute(path))?;
+    }
+    if cli.allow_networking {
+        birdcage.add_exception(Exception::Networking)?;
     }
 
     // Activate sandbox.

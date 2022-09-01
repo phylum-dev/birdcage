@@ -1,4 +1,4 @@
-//! Seatbelt sandbox.
+//! Linux sandboxing.
 //!
 //! This module implements sandboxing on macOS using `sandbox_init`.
 
@@ -7,7 +7,7 @@ use std::io::Write;
 use std::path::PathBuf;
 use std::ptr;
 
-use crate::error::Error;
+use crate::error::{Error, Result};
 use crate::{Exception, Sandbox};
 
 /// Deny-all fallback rule.
@@ -16,17 +16,17 @@ static DEFAULT_RULE: &'static [u8] = b"\
 (deny default)
 ";
 
-/// Seatbelt sandbox state.
-pub struct Seatbelt {
+/// macOS sandboxing based on Seatbelt.
+pub struct MacSandbox {
     profile: Vec<u8>,
 }
 
-impl Sandbox for Seatbelt {
-    fn new() -> Result<Self, Error> {
+impl Sandbox for MacSandbox {
+    fn new() -> Result<Self> {
         Ok(Self { profile: DEFAULT_RULE.to_vec() })
     }
 
-    fn add_exception(&mut self, exception: Exception) -> Result<&mut Self, Error> {
+    fn add_exception(&mut self, exception: Exception) -> Result<&mut Self> {
         match exception {
             Exception::Read(path) => {
                 self.profile.write_all(b"(allow file-read* (subpath ")?;
@@ -40,11 +40,13 @@ impl Sandbox for Seatbelt {
                 self.profile.write_all(escaped_path.as_bytes())?;
                 self.profile.write_all(b"))\n")?;
             },
+            Exception::ReadAndExecute(path) => todo!(),
+            Exception::Networking => todo!(),
         }
         Ok(self)
     }
 
-    fn lock(self) -> Result<(), Error> {
+    fn lock(self) -> Result<()> {
         let profile = CString::new(self.profile)
             .map_err(|_| Error::ActivationFailed("invalid profile".into()))?;
 
@@ -68,7 +70,7 @@ impl Sandbox for Seatbelt {
 }
 
 /// Escape a path: /tt/in\a"x -> "/tt/in\\a\"x"
-fn escape_path(path: PathBuf) -> Result<String, Error> {
+fn escape_path(path: PathBuf) -> Result<String> {
     let mut path = path.into_os_string().into_string()?;
     path = path.replace('"', r#"\""#);
     path = path.replace('\\', r#"\\"#);

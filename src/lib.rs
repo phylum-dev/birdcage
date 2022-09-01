@@ -27,11 +27,11 @@
 
 use std::path::PathBuf;
 
-use crate::error::Error;
+use crate::error::Result;
 #[cfg(target_os = "linux")]
-use crate::linux::Landlock;
+use crate::linux::LinuxSandbox;
 #[cfg(target_os = "macos")]
-use crate::macos::Seatbelt;
+use crate::macos::MacSandbox;
 
 mod error;
 #[cfg(target_os = "linux")]
@@ -44,18 +44,18 @@ mod macos;
 /// This type will automatically pick the default sandbox for each available
 /// platform.
 #[cfg(target_os = "linux")]
-pub type Birdcage = Landlock;
+pub type Birdcage = LinuxSandbox;
 
 /// Default platform sandbox.
 ///
 /// This type will automatically pick the default sandbox for each available
 /// platform.
 #[cfg(target_os = "macos")]
-pub type Birdcage = Seatbelt;
+pub type Birdcage = MacSandbox;
 
 pub trait Sandbox {
     /// Setup the sandboxing environment.
-    fn new() -> Result<Self, Error>
+    fn new() -> Result<Self>
     where
         Self: Sized;
 
@@ -64,10 +64,10 @@ pub trait Sandbox {
     /// This exception opens up the sandbox to allow access for the specified
     /// operation. Once an exception is added, it is **not** possible to
     /// prohibit access to this resource without creating a new sandbox.
-    fn add_exception(&mut self, exception: Exception) -> Result<&mut Self, Error>;
+    fn add_exception(&mut self, exception: Exception) -> Result<&mut Self>;
 
     /// Apply the sandbox restrictions to the current thread.
-    fn lock(self) -> Result<(), Error>;
+    fn lock(self) -> Result<()>;
 }
 
 /// Sandboxing exception rule.
@@ -80,4 +80,13 @@ pub enum Exception {
 
     /// Allow write access to the path and anything beneath it.
     Write(PathBuf),
+
+    /// Allow executing and reading the path and anything beneath it.
+    ///
+    /// This is grouped with reading as a convenience, since execution will
+    /// always also require read access.
+    ReadAndExecute(PathBuf),
+
+    /// Allow networking.
+    Networking,
 }
