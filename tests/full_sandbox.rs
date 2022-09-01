@@ -9,6 +9,8 @@ fn full_sandbox() {
 
     // Create testfile.
     let path = fs::canonicalize(NamedTempFile::new().unwrap()).unwrap();
+
+    // Ensure non-sandboxed write works.
     fs::write(&path, FILE_CONTENT.as_bytes()).unwrap();
 
     // Ensure non-sandboxed read works.
@@ -17,6 +19,10 @@ fn full_sandbox() {
 
     // Activate our sandbox.
     Birdcage::new().unwrap().lock().unwrap();
+
+    // Ensure sandboxed write is blocked.
+    let result = fs::write(&path, b"x");
+    assert!(result.is_err());
 
     // Ensure sandboxed read is blocked.
     let result = fs::read_to_string(path);
