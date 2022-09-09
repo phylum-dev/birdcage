@@ -20,7 +20,7 @@ const ABI: LANDLOCK_ABI = LANDLOCK_ABI::V1;
 /// Linux sandboxing based on Landlock and Seccomp.
 pub struct LinuxSandbox {
     landlock: RulesetCreated,
-    seccomp: Filter,
+    allow_networking: bool,
 }
 
 impl Sandbox for LinuxSandbox {
@@ -32,16 +32,7 @@ impl Sandbox for LinuxSandbox {
             .create()?;
         landlock.set_no_new_privs(true);
 
-        // Setup seccomp filtering.
-        let mut seccomp = Filter::new();
-        seccomp.allow_benign();
-
-        // Always allow local I/O and execute since, this is handled by Landlock.
-        seccomp.allow_sockets(true)?;
-        seccomp.allow_exec();
-        seccomp.allow_fs();
-
-        Ok(Self { landlock, seccomp })
+        Ok(Self { landlock, allow_networking: false })
     }
 
     fn add_exception(&mut self, exception: Exception) -> Result<&mut Self> {
@@ -50,7 +41,7 @@ impl Sandbox for LinuxSandbox {
             Exception::Write(path) => (path, AccessFs::from_write(ABI)),
             Exception::ReadAndExecute(path) => (path, AccessFs::from_read(ABI)),
             Exception::Networking => {
-                self.seccomp.allow_sockets(false)?;
+                self.allow_networking = true;
                 return Ok(self);
             },
         };
@@ -63,8 +54,15 @@ impl Sandbox for LinuxSandbox {
     }
 
     fn lock(self) -> Result<()> {
+        // Create and apply seccomp filter.
+        let mut seccomp = Filter::new();
+        if !self.allow_networking {
+            seccomp.deny_networking()?;
+        }
+        seccomp.apply()?;
+
+        // Apply landlock rules.
         let status = self.landlock.restrict_self()?;
-        self.seccomp.apply()?;
 
         // Ensure all restrictions were properly applied.
         if status.no_new_privs && status.ruleset == RulesetStatus::FullyEnforced {

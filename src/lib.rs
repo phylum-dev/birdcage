@@ -33,7 +33,7 @@ use crate::linux::LinuxSandbox;
 #[cfg(target_os = "macos")]
 use crate::macos::MacSandbox;
 
-mod error;
+pub mod error;
 #[cfg(target_os = "linux")]
 mod linux;
 #[cfg(target_os = "macos")]
