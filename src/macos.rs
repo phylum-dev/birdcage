@@ -40,7 +40,7 @@ impl Sandbox for MacSandbox {
                 self.profile.write_all(escaped_path.as_bytes())?;
                 self.profile.write_all(b"))\n")?;
             },
-            Exception::ReadAndExecute(path) => todo!(),
+            Exception::ExecuteAndRead(path) => todo!(),
             Exception::Networking => todo!(),
         }
         Ok(self)

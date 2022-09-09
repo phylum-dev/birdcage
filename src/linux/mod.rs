@@ -39,7 +39,7 @@ impl Sandbox for LinuxSandbox {
         let (path, access) = match exception {
             Exception::Read(path) => (path, make_bitflags!(AccessFs::{ ReadFile | ReadDir })),
             Exception::Write(path) => (path, AccessFs::from_write(ABI)),
-            Exception::ReadAndExecute(path) => (path, AccessFs::from_read(ABI)),
+            Exception::ExecuteAndRead(path) => (path, AccessFs::from_read(ABI)),
             Exception::Networking => {
                 self.allow_networking = true;
                 return Ok(self);

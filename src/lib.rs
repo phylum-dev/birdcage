@@ -85,7 +85,7 @@ pub enum Exception {
     ///
     /// This is grouped with reading as a convenience, since execution will
     /// always also require read access.
-    ReadAndExecute(PathBuf),
+    ExecuteAndRead(PathBuf),
 
     /// Allow networking.
     Networking,
