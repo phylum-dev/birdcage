@@ -63,6 +63,10 @@ impl Sandbox for LinuxSandbox {
     }
 
     fn lock(self) -> Result<()> {
+        // TODO: Do we want to change user to something without many permissions?
+        // TODO: Otherwise a syscall like `kill` could do some harm...
+        // TODO: But this will likely cause problems with filesystem access.
+
         let status = self.landlock.restrict_self()?;
         self.seccomp.apply()?;
 
