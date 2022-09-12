@@ -14,7 +14,17 @@ use crate::{Exception, Sandbox};
 static DEFAULT_RULE: &'static [u8] = b"\
 (version 1)
 (deny default)
+(allow mach*)
+(allow ipc*)
+(allow signal (target others))
+(allow process-fork)
+(allow sysctl*)
+(allow system*)
 ";
+
+// TODO(andrea)
+// For system*, test whether its access to socket can bypass
+// restrictions imposed by network* and file-read*/file-write*.
 
 /// macOS sandboxing based on Seatbelt.
 pub struct MacSandbox {
@@ -40,8 +50,15 @@ impl Sandbox for MacSandbox {
                 self.profile.write_all(escaped_path.as_bytes())?;
                 self.profile.write_all(b"))\n")?;
             },
-            Exception::ExecuteAndRead(path) => todo!(),
-            Exception::Networking => todo!(),
+            Exception::ExecuteAndRead(path) => {
+                self.profile.write_all(b"(allow process-exec (literal ")?;
+                let escaped_path = escape_path(path)?;
+                self.profile.write_all(escaped_path.as_bytes())?;
+                self.profile.write_all(b"))\n")?;
+            },
+            Exception::Networking => {
+                self.profile.write_all(b"(allow network*)\n")?;
+            }
         }
         Ok(self)
     }
@@ -72,6 +89,10 @@ impl Sandbox for MacSandbox {
 /// Escape a path: /tt/in\a"x -> "/tt/in\\a\"x"
 fn escape_path(path: PathBuf) -> Result<String> {
     let mut path = path.into_os_string().into_string()?;
+    // Paths in `subpath` expressions must not end with /.
+    while path.ends_with('/') {
+        path.pop();
+    }
     path = path.replace('"', r#"\""#);
     path = path.replace('\\', r#"\\"#);
     Ok(format!("\"{path}\""))
