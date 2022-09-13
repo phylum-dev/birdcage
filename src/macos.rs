@@ -22,10 +22,6 @@ static DEFAULT_RULE: &'static [u8] = b"\
 (allow system*)
 ";
 
-// TODO(andrea)
-// For system*, test whether its access to socket can bypass
-// restrictions imposed by network* and file-read*/file-write*.
-
 /// macOS sandboxing based on Seatbelt.
 pub struct MacSandbox {
     profile: Vec<u8>,
