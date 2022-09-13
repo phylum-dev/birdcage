@@ -58,7 +58,7 @@ impl Sandbox for MacSandbox {
             },
             Exception::Networking => {
                 self.profile.write_all(b"(allow network*)\n")?;
-            }
+            },
         }
         Ok(self)
     }
