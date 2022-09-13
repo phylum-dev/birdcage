@@ -59,7 +59,7 @@ impl Filter {
             // Action performed if no rules match.
             SeccompAction::Allow,
             // Action performed if any rule matches.
-            SeccompAction::KillProcess,
+            SeccompAction::Errno(libc::EACCES as u32),
             ARCH,
         )?;
         let program: BpfProgram = filter.try_into()?;
