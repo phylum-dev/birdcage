@@ -27,7 +27,6 @@ static DEFAULT_RULE: &'static [u8] = b"\
 // restrictions imposed by network* and file-read*/file-write*.
 
 /// macOS sandboxing based on Seatbelt.
-#[derive(Clone)]
 pub struct MacSandbox {
     profile: Vec<u8>,
 }

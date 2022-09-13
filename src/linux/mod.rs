@@ -18,7 +18,6 @@ mod seccomp;
 const ABI: LANDLOCK_ABI = LANDLOCK_ABI::V1;
 
 /// Linux sandboxing based on Landlock and Seccomp.
-#[derive(Clone)]
 pub struct LinuxSandbox {
     landlock: RulesetCreated,
     allow_networking: bool,
