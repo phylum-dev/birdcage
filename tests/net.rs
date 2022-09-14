@@ -20,5 +20,4 @@ fn network() {
     let listener = TcpListener::bind("127.0.0.1:31337");
     assert!(listener.is_ok());
     drop(listener);
-
 }
