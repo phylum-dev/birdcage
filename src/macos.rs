@@ -13,6 +13,8 @@ use crate::{Exception, Sandbox};
 /// Deny-all fallback rule.
 static DEFAULT_RULE: &[u8] = b"\
 (version 1)
+(import \"system.sb\")
+
 (deny default)
 (allow mach*)
 (allow ipc*)
@@ -20,6 +22,7 @@ static DEFAULT_RULE: &[u8] = b"\
 (allow process-fork)
 (allow sysctl*)
 (allow system*)
+(system-network)
 ";
 
 /// macOS sandboxing based on Seatbelt.
