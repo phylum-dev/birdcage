@@ -91,7 +91,7 @@ fn escape_path(path: PathBuf) -> Result<String> {
     let mut path = path.into_os_string().into_string()?;
     // Paths in `subpath` expressions must not end with /.
     while path.ends_with('/') {
-        path.pop();
+        String::pop(&mut path);
     }
     path = path.replace('"', r#"\""#);
     path = path.replace('\\', r#"\\"#);
