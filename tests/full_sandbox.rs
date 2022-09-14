@@ -30,7 +30,7 @@ fn full_sandbox() {
     drop(stream);
 
     // Ensure non-sandboxed execution works.
-    let cmd = Command::new("/bin/echo").arg("hello world").spawn();
+    let cmd = Command::new("/bin/echo").arg("hello world").status();
     assert!(cmd.is_ok());
 
     // Activate our sandbox.
@@ -55,6 +55,6 @@ fn full_sandbox() {
     drop(stream);
 
     // Ensure sandboxed execution is blocked.
-    let cmd = Command::new("/bin/echo").arg("hello world").spawn();
+    let cmd = Command::new("/bin/echo").arg("hello world").status();
     assert!(cmd.is_err());
 }

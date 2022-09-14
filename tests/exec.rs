@@ -9,7 +9,8 @@ fn execution() {
     bc.add_exception(Exception::ExecuteAndRead("/bin/echo".into())).unwrap();
     bc.lock().unwrap();
 
-    let cmd = Command::new("/bin/echo").arg("hello world").spawn();
+    let cmd = Command::new("/bin/echo").arg("hello world").status();
+    println!("{:?}", cmd);
     assert!(cmd.is_ok());
 
     let cmd_file = fs::read("/bin/echo");

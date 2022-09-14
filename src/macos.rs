@@ -11,7 +11,7 @@ use crate::error::{Error, Result};
 use crate::{Exception, Sandbox};
 
 /// Deny-all fallback rule.
-static DEFAULT_RULE: &'static [u8] = b"\
+static DEFAULT_RULE: &[u8] = b"\
 (version 1)
 (deny default)
 (allow mach*)
