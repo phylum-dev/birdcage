@@ -1,6 +1,6 @@
 use std::net::{TcpListener, TcpStream};
 
-use birdcage::{Birdcage, Exception, Sandbox};
+use birdcage::{Birdcage, Sandbox};
 
 #[test]
 fn it_blocks_network() {

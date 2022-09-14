@@ -47,7 +47,7 @@ impl Sandbox for MacSandbox {
                 self.profile.write_all(b"))\n")?;
             },
             Exception::ExecuteAndRead(path) => {
-                self.profile.write_all(b"(allow process-exec (literal ")?;
+                self.profile.write_all(b"(allow process-exec (subpath ")?;
                 let escaped_path = escape_path(path)?;
                 self.profile.write_all(escaped_path.as_bytes())?;
                 self.profile.write_all(b"))\n")?;
