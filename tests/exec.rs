@@ -5,11 +5,13 @@ use birdcage::{Birdcage, Exception, Sandbox};
 
 #[test]
 fn execution() {
+    let tmp_path = std::fs::canonicalize("/tmp").unwrap();
+    let lib_path = std::fs::canonicalize("/lib").ok();
+
     let mut bc = Birdcage::new().unwrap();
     bc.add_exception(Exception::ExecuteAndRead("/bin/ls".into())).unwrap();
-    bc.add_exception(Exception::Read("/tmp/".into())).unwrap();
-    #[cfg(target_os = "macos")]
-    bc.add_exception(Exception::Read("/private/tmp/".into())).unwrap();
+    bc.add_exception(Exception::Read(tmp_path)).unwrap();
+    lib_path.map(|lib_path| bc.add_exception(Exception::Read(lib_path)).unwrap());
     bc.lock().unwrap();
 
     let cmd = Command::new("/bin/ls").arg("/tmp/").status().unwrap();
