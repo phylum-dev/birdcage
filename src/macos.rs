@@ -51,6 +51,7 @@ impl Sandbox for MacSandbox {
             },
             Exception::ExecuteAndRead(path) => {
                 self.add_exception(Exception::Read(path.clone()))?;
+
                 self.profile.write_all(b"(allow process-exec (subpath ")?;
                 let escaped_path = escape_path(path)?;
                 self.profile.write_all(escaped_path.as_bytes())?;

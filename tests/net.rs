@@ -8,8 +8,6 @@ fn network() {
     bc.add_exception(Exception::Networking).unwrap();
     bc.add_exception(Exception::Read("/etc/resolv.conf".into())).unwrap();
     bc.add_exception(Exception::Read("/var/run/resolv.conf".into())).unwrap();
-    bc.add_exception(Exception::Read("/etc/ca-certificates".into())).unwrap();
-    bc.add_exception(Exception::Read("/etc/ssl".into())).unwrap();
     bc.lock().unwrap();
 
     let stream = TcpStream::connect("phylum.io:443");
