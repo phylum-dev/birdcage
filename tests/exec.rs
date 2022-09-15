@@ -16,9 +16,15 @@ fn execution() {
     println!("{:?}", cmd);
     assert!(cmd.success());
 
-    let cmd = Command::new("/bin/ls").arg("/dev/").status().unwrap();
+    let cmd = Command::new("/bin/ls").arg("/dev/").status();
     println!("{:?}", cmd);
-    assert!(!cmd.success());
+
+    // When the child gets locked by the sandbox, on Linux, `cmd` is Err(_).
+    #[cfg(target_os = "linux")]
+    assert!(cmd.is_err());
+    // On MacOS, `cmd` is Ok(ExitStatus(256)) instead.
+    #[cfg(target_os = "macos")]
+    assert!(!cmd.unwrap().success());
 
     let cmd_file = fs::read("/bin/ls");
     assert!(cmd_file.is_ok());
