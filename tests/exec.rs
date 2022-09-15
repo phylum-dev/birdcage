@@ -8,6 +8,7 @@ fn execution() {
     let mut bc = Birdcage::new().unwrap();
     bc.add_exception(Exception::ExecuteAndRead("/bin/ls".into())).unwrap();
     bc.add_exception(Exception::Read("/tmp".into())).unwrap();
+    #[cfg(target_os = "macos")]
     bc.add_exception(Exception::Read("/private/tmp".into())).unwrap();
     bc.lock().unwrap();
 
