@@ -11,8 +11,7 @@ fn network() {
     bc.add_exception(Exception::Read(resolv_conf_path)).unwrap();
     bc.lock().unwrap();
 
-    let stream = TcpStream::connect("phylum.io:443");
-    println!("{:?}", stream);
+    let stream = TcpStream::connect("example.org:80");
     assert!(stream.is_ok());
     drop(stream);
 
