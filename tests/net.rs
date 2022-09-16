@@ -9,6 +9,7 @@ fn network() {
     let mut bc = Birdcage::new().unwrap();
     bc.add_exception(Exception::Networking).unwrap();
     bc.add_exception(Exception::Read(resolv_conf_path)).unwrap();
+    bc.add_exception(Exception::Read("/".into())).unwrap();
     bc.lock().unwrap();
 
     TcpStream::connect("example.org:80").unwrap();
