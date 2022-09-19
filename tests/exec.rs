@@ -5,24 +5,17 @@ use birdcage::{Birdcage, Exception, Sandbox};
 
 #[test]
 fn execution() {
+    const TRUE_PATH: &str = if cfg!(target_os = "macos") { "/usr/bin/true" } else { "/bin/true" };
+
     let mut bc = Birdcage::new().unwrap();
-
-    bc.add_exception(Exception::ExecuteAndRead("/bin/ls".into())).unwrap();
-    fs::canonicalize("/tmp").ok().map(|path| bc.add_exception(Exception::Read(path)));
-    fs::canonicalize("/bin").ok().map(|path| bc.add_exception(Exception::ExecuteAndRead(path)));
-    fs::canonicalize("/lib").ok().map(|path| bc.add_exception(Exception::ExecuteAndRead(path)));
-
+    bc.add_exception(Exception::ExecuteAndRead(TRUE_PATH.into())).unwrap();
     bc.lock().unwrap();
 
-    // Check for success when executing `ls` against a permitted path.
-    let cmd = Command::new("/bin/ls").arg("/tmp/").status().unwrap();
+    // Check for success when executing `true`.
+    let cmd = Command::new(TRUE_PATH).status().unwrap();
     assert!(cmd.success());
 
-    // Check for errors when executing `ls` against a restricted path.
-    let cmd = Command::new("/bin/ls").arg("/dev/").status().unwrap();
-    assert!(!cmd.success());
-
-    // Check for success on reading the `ls` file.
-    let cmd_file = fs::read("/bin/ls");
+    // Check for success on reading the `true` file.
+    let cmd_file = fs::read(TRUE_PATH);
     assert!(cmd_file.is_ok());
 }
