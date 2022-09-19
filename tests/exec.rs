@@ -8,11 +8,11 @@ fn execution() {
     let mut bc = Birdcage::new().unwrap();
 
     bc.add_exception(Exception::ExecuteAndRead("/bin/ls".into())).unwrap();
-    std::fs::canonicalize("/tmp").ok().map(|path| bc.add_exception(Exception::Read(path)));
-    std::fs::canonicalize("/bin")
+    fs::canonicalize("/tmp").ok().map(|path| bc.add_exception(Exception::Read(path)));
+    fs::canonicalize("/bin")
         .ok()
         .map(|path| bc.add_exception(Exception::ExecuteAndRead(path)));
-    std::fs::canonicalize("/lib")
+    fs::canonicalize("/lib")
         .ok()
         .map(|path| bc.add_exception(Exception::ExecuteAndRead(path)));
 
