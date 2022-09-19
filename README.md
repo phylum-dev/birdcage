@@ -24,3 +24,8 @@ cargo run --example sandbox -- -e /usr/bin/echo -e /usr/lib echo "Hello, Sandbox
 
 Check out `cargo run --example sandbox -- --help` for more information on how to
 use the example.
+
+## Supported Platforms
+
+ - Linux (5.13+)
+ - macOS
