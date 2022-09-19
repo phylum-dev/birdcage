@@ -9,12 +9,8 @@ fn execution() {
 
     bc.add_exception(Exception::ExecuteAndRead("/bin/ls".into())).unwrap();
     fs::canonicalize("/tmp").ok().map(|path| bc.add_exception(Exception::Read(path)));
-    fs::canonicalize("/bin")
-        .ok()
-        .map(|path| bc.add_exception(Exception::ExecuteAndRead(path)));
-    fs::canonicalize("/lib")
-        .ok()
-        .map(|path| bc.add_exception(Exception::ExecuteAndRead(path)));
+    fs::canonicalize("/bin").ok().map(|path| bc.add_exception(Exception::ExecuteAndRead(path)));
+    fs::canonicalize("/lib").ok().map(|path| bc.add_exception(Exception::ExecuteAndRead(path)));
 
     bc.lock().unwrap();
 
