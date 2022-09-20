@@ -22,6 +22,7 @@ static DEFAULT_RULE: &[u8] = b"\
 (allow process-fork)
 (allow sysctl*)
 (allow system*)
+(allow file-read-metadata)
 (system-network)
 ";
 
