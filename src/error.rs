@@ -1,7 +1,6 @@
 //! Sandboxing errors.
 
 use std::error::Error as StdError;
-#[cfg(target_os = "macos")]
 use std::ffi::OsString;
 use std::fmt::{self, Display, Formatter};
 #[cfg(target_os = "macos")]
@@ -32,7 +31,7 @@ pub enum Error {
     #[cfg(target_os = "linux")]
     InvalidPath(PathFdError),
     #[cfg(target_os = "macos")]
-    InvalidPath(OsString),
+    InvalidPath(InvalidPathError),
 
     /// I/O error.
     #[cfg(target_os = "macos")]
@@ -93,8 +92,8 @@ impl From<PathFdError> for Error {
 }
 
 #[cfg(target_os = "macos")]
-impl From<OsString> for Error {
-    fn from(error: OsString) -> Self {
+impl From<InvalidPathError> for Error {
+    fn from(error: InvalidPathError) -> Self {
         Self::InvalidPath(error)
     }
 }
@@ -103,5 +102,34 @@ impl From<OsString> for Error {
 impl From<IoError> for Error {
     fn from(error: IoError) -> Self {
         Self::Io(error)
+    }
+}
+
+/// Invalid sandbox exception path.
+#[cfg(target_os = "macos")]
+#[derive(Debug)]
+pub struct InvalidPathError(String);
+
+#[cfg(target_os = "macos")]
+impl StdError for InvalidPathError {}
+
+#[cfg(target_os = "macos")]
+impl Display for InvalidPathError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "invalid path: {}", self.0)
+    }
+}
+
+#[cfg(target_os = "macos")]
+impl From<IoError> for InvalidPathError {
+    fn from(error: IoError) -> Self {
+        InvalidPathError(error.to_string())
+    }
+}
+
+#[cfg(target_os = "macos")]
+impl From<OsString> for InvalidPathError {
+    fn from(error: OsString) -> Self {
+        InvalidPathError(error.to_string_lossy().into_owned())
     }
 }

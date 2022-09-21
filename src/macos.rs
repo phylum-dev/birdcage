@@ -5,9 +5,10 @@
 use std::ffi::{CStr, CString};
 use std::io::Write;
 use std::path::PathBuf;
+use std::result::Result as StdResult;
 use std::{fs, ptr};
 
-use crate::error::{Error, Result};
+use crate::error::{Error, InvalidPathError, Result};
 use crate::{Exception, Sandbox};
 
 /// Deny-all fallback rule.
@@ -37,31 +38,36 @@ impl Sandbox for MacSandbox {
     }
 
     fn add_exception(&mut self, exception: Exception) -> Result<&mut Self> {
+        // Temporary buffer to hold intermediate writes.
+        // Prevents errors from breaking the whole sandbox profile.
+        let mut buffer = Vec::new();
+
         match exception {
             Exception::Read(path) => {
-                self.profile.write_all(b"(allow file-read* (subpath ")?;
+                buffer.write_all(b"(allow file-read* (subpath ")?;
                 let escaped_path = escape_path(path)?;
-                self.profile.write_all(escaped_path.as_bytes())?;
-                self.profile.write_all(b"))\n")?;
+                buffer.write_all(escaped_path.as_bytes())?;
+                buffer.write_all(b"))\n")?;
             },
             Exception::Write(path) => {
-                self.profile.write_all(b"(allow file-write* (subpath ")?;
+                buffer.write_all(b"(allow file-write* (subpath ")?;
                 let escaped_path = escape_path(path)?;
-                self.profile.write_all(escaped_path.as_bytes())?;
-                self.profile.write_all(b"))\n")?;
+                buffer.write_all(escaped_path.as_bytes())?;
+                buffer.write_all(b"))\n")?;
             },
             Exception::ExecuteAndRead(path) => {
                 self.add_exception(Exception::Read(path.clone()))?;
 
-                self.profile.write_all(b"(allow process-exec (subpath ")?;
+                buffer.write_all(b"(allow process-exec (subpath ")?;
                 let escaped_path = escape_path(path)?;
-                self.profile.write_all(escaped_path.as_bytes())?;
-                self.profile.write_all(b"))\n")?;
+                buffer.write_all(escaped_path.as_bytes())?;
+                buffer.write_all(b"))\n")?;
             },
             Exception::Networking => {
-                self.profile.write_all(b"(allow network*)\n")?;
+                buffer.write_all(b"(allow network*)\n")?;
             },
         }
+        self.profile.write_all(&buffer)?;
         Ok(self)
     }
 
@@ -89,12 +95,14 @@ impl Sandbox for MacSandbox {
 }
 
 /// Escape a path: /tt/in\a"x -> "/tt/in\\a\"x"
-fn escape_path(path: PathBuf) -> Result<String> {
+fn escape_path(path: PathBuf) -> StdResult<String, InvalidPathError> {
     // Canonicalize the incoming path to support relative paths.
     // The `subpath` action only allows absolute paths.
     let path = fs::canonicalize(path)?;
 
-    let mut path = path.into_os_string().into_string()?;
+    let mut path = path
+        .into_os_string()
+        .into_string()?;
     // Paths in `subpath` expressions must not end with /.
     while path.ends_with('/') && path != "/" {
         String::pop(&mut path);
