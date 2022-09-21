@@ -90,7 +90,10 @@ impl Sandbox for MacSandbox {
 
 /// Escape a path: /tt/in\a"x -> "/tt/in\\a\"x"
 fn escape_path(path: PathBuf) -> Result<String> {
+    // Canonicalize the incoming path to support relative paths.
+    // The `subpath` action only allows absolute paths.
     let path = fs::canonicalize(path)?;
+
     let mut path = path.into_os_string().into_string()?;
     // Paths in `subpath` expressions must not end with /.
     while path.ends_with('/') && path != "/" {
