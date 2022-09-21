@@ -100,9 +100,7 @@ fn escape_path(path: PathBuf) -> StdResult<String, InvalidPathError> {
     // The `subpath` action only allows absolute paths.
     let path = fs::canonicalize(path)?;
 
-    let mut path = path
-        .into_os_string()
-        .into_string()?;
+    let mut path = path.into_os_string().into_string()?;
     // Paths in `subpath` expressions must not end with /.
     while path.ends_with('/') && path != "/" {
         String::pop(&mut path);
