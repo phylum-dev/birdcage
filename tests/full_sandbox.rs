@@ -10,7 +10,7 @@ fn full_sandbox() {
     const FILE_CONTENT: &str = "expected content";
 
     // Create testfile.
-    let path = fs::canonicalize(NamedTempFile::new().unwrap()).unwrap();
+    let path = NamedTempFile::new().unwrap();
 
     // Ensure non-sandboxed write works.
     fs::write(&path, FILE_CONTENT.as_bytes()).unwrap();
