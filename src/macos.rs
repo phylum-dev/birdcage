@@ -5,7 +5,7 @@
 use std::ffi::{CStr, CString};
 use std::io::Write;
 use std::path::PathBuf;
-use std::ptr;
+use std::{fs, ptr};
 
 use crate::error::{Error, Result};
 use crate::{Exception, Sandbox};
@@ -90,6 +90,7 @@ impl Sandbox for MacSandbox {
 
 /// Escape a path: /tt/in\a"x -> "/tt/in\\a\"x"
 fn escape_path(path: PathBuf) -> Result<String> {
+    let path = fs::canonicalize(path)?;
     let mut path = path.into_os_string().into_string()?;
     // Paths in `subpath` expressions must not end with /.
     while path.ends_with('/') && path != "/" {
