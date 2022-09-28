@@ -1,6 +1,7 @@
 //! Sandboxing errors.
 
 use std::error::Error as StdError;
+#[cfg(target_os = "macos")]
 use std::ffi::OsString;
 use std::fmt::{self, Display, Formatter};
 #[cfg(target_os = "macos")]
