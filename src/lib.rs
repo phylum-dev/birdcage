@@ -74,6 +74,7 @@ pub trait Sandbox {
 ///
 /// An exception excludes certain resources from the sandbox, allowing sandboxed
 /// applications to still access these resources.
+#[derive(Debug, Clone)]
 pub enum Exception {
     /// Allow read access to the path and anything beneath it.
     Read(PathBuf),
