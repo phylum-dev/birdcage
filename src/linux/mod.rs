@@ -26,16 +26,16 @@ pub struct LinuxSandbox {
 impl Sandbox for LinuxSandbox {
     fn new() -> Result<Self> {
         // Setup landlock filtering.
-        let mut landlock = Ruleset::new()
+        let landlock = Ruleset::new()
             .set_best_effort(false)
             .handle_access(AccessFs::from_all(ABI))?
-            .create()?;
-        landlock.set_no_new_privs(true);
+            .create()?
+            .set_no_new_privs(true);
 
         Ok(Self { landlock, allow_networking: false })
     }
 
-    fn add_exception(&mut self, exception: Exception) -> Result<&mut Self> {
+    fn add_exception(mut self, exception: Exception) -> Result<Self> {
         let (path, access) = match exception {
             Exception::Read(path) => (path, make_bitflags!(AccessFs::{ ReadFile | ReadDir })),
             Exception::Write(path) => (path, AccessFs::from_write(ABI)),
@@ -48,7 +48,7 @@ impl Sandbox for LinuxSandbox {
 
         let rule = PathBeneath::new(PathFd::new(path)?, access);
 
-        self.landlock.add_rule(rule)?;
+        self.landlock = self.landlock.add_rule(rule)?;
 
         Ok(self)
     }

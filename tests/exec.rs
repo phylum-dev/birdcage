@@ -5,10 +5,14 @@ use birdcage::{Birdcage, Exception, Sandbox};
 
 #[test]
 fn execution() {
-    let mut bc = Birdcage::new().unwrap();
-    bc.add_exception(Exception::ExecuteAndRead("/usr/bin/true".into())).unwrap();
-    bc.add_exception(Exception::ExecuteAndRead("/usr/lib".into())).unwrap();
-    bc.lock().unwrap();
+    Birdcage::new()
+        .unwrap()
+        .add_exception(Exception::ExecuteAndRead("/usr/bin/true".into()))
+        .unwrap()
+        .add_exception(Exception::ExecuteAndRead("/usr/lib".into()))
+        .unwrap()
+        .lock()
+        .unwrap();
 
     // Check for success when executing `true`.
     let cmd = Command::new("/usr/bin/true").status().unwrap();

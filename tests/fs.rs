@@ -14,9 +14,12 @@ fn partial_fs() {
     fs::write(&public_path, FILE_CONTENT.as_bytes()).unwrap();
 
     // Activate our sandbox.
-    let mut birdcage = Birdcage::new().unwrap();
-    birdcage.add_exception(Exception::Read(public_path.path().into())).unwrap();
-    birdcage.lock().unwrap();
+    Birdcage::new()
+        .unwrap()
+        .add_exception(Exception::Read(public_path.path().into()))
+        .unwrap()
+        .lock()
+        .unwrap();
 
     // Access to the public file is allowed.
     let content = fs::read_to_string(public_path).unwrap();

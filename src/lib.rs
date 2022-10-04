@@ -53,18 +53,16 @@ pub type Birdcage = LinuxSandbox;
 #[cfg(target_os = "macos")]
 pub type Birdcage = MacSandbox;
 
-pub trait Sandbox {
+pub trait Sandbox: Sized {
     /// Setup the sandboxing environment.
-    fn new() -> Result<Self>
-    where
-        Self: Sized;
+    fn new() -> Result<Self>;
 
     /// Add a new exception to the sandbox.
     ///
     /// This exception opens up the sandbox to allow access for the specified
     /// operation. Once an exception is added, it is **not** possible to
     /// prohibit access to this resource without creating a new sandbox.
-    fn add_exception(&mut self, exception: Exception) -> Result<&mut Self>;
+    fn add_exception(self, exception: Exception) -> Result<Self>;
 
     /// Apply the sandbox restrictions to the current thread.
     fn lock(self) -> Result<()>;
