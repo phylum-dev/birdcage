@@ -35,7 +35,7 @@ impl Sandbox for LinuxSandbox {
         Ok(Self { landlock, allow_networking: false })
     }
 
-    fn add_exception(mut self, exception: Exception) -> Result<Self> {
+    fn add_exception(&mut self, exception: Exception) -> Result<&mut Self> {
         let (path, access) = match exception {
             Exception::Read(path) => (path, make_bitflags!(AccessFs::{ ReadFile | ReadDir })),
             Exception::Write(path) => (path, AccessFs::from_write(ABI)),
@@ -48,7 +48,7 @@ impl Sandbox for LinuxSandbox {
 
         let rule = PathBeneath::new(PathFd::new(path)?, access);
 
-        self.landlock = self.landlock.add_rule(rule)?;
+        self.landlock.as_mut().add_rule(rule)?;
 
         Ok(self)
     }

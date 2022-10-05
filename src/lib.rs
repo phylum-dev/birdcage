@@ -62,7 +62,7 @@ pub trait Sandbox: Sized {
     /// This exception opens up the sandbox to allow access for the specified
     /// operation. Once an exception is added, it is **not** possible to
     /// prohibit access to this resource without creating a new sandbox.
-    fn add_exception(self, exception: Exception) -> Result<Self>;
+    fn add_exception(&mut self, exception: Exception) -> Result<&mut Self>;
 
     /// Apply the sandbox restrictions to the current thread.
     fn lock(self) -> Result<()>;

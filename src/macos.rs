@@ -37,7 +37,7 @@ impl Sandbox for MacSandbox {
         Ok(Self { profile: DEFAULT_RULE.to_vec() })
     }
 
-    fn add_exception(mut self, exception: Exception) -> Result<Self> {
+    fn add_exception(&mut self, exception: Exception) -> Result<&mut Self> {
         // Temporary buffer to hold intermediate writes.
         // Prevents errors from breaking the whole sandbox profile.
         let mut buffer = Vec::new();
