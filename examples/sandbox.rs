@@ -39,15 +39,19 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     // Setup sandbox and its exceptions.
     let mut birdcage = Birdcage::new()?;
+
     for path in cli.allow_read {
         birdcage.add_exception(Exception::Read(path))?;
     }
+
     for path in cli.allow_write {
         birdcage.add_exception(Exception::Write(path))?;
     }
+
     for path in cli.allow_execute {
         birdcage.add_exception(Exception::ExecuteAndRead(path))?;
     }
+
     if cli.allow_networking {
         birdcage.add_exception(Exception::Networking)?;
     }

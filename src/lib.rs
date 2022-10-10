@@ -53,11 +53,9 @@ pub type Birdcage = LinuxSandbox;
 #[cfg(target_os = "macos")]
 pub type Birdcage = MacSandbox;
 
-pub trait Sandbox {
+pub trait Sandbox: Sized {
     /// Setup the sandboxing environment.
-    fn new() -> Result<Self>
-    where
-        Self: Sized;
+    fn new() -> Result<Self>;
 
     /// Add a new exception to the sandbox.
     ///
@@ -74,6 +72,7 @@ pub trait Sandbox {
 ///
 /// An exception excludes certain resources from the sandbox, allowing sandboxed
 /// applications to still access these resources.
+#[derive(Debug, Clone)]
 pub enum Exception {
     /// Allow read access to the path and anything beneath it.
     Read(PathBuf),

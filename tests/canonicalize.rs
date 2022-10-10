@@ -4,9 +4,9 @@ use birdcage::{Birdcage, Exception, Sandbox};
 
 #[test]
 fn canonicalize() {
-    let mut bc = Birdcage::new().unwrap();
-    bc.add_exception(Exception::Read("./".into())).unwrap();
-    bc.lock().unwrap();
+    let mut birdcage = Birdcage::new().unwrap();
+    birdcage.add_exception(Exception::Read("./".into())).unwrap();
+    birdcage.lock().unwrap();
 
     // Check for success on reading the `Cargo.toml` file.
     let file = fs::read_to_string("./Cargo.toml").unwrap();

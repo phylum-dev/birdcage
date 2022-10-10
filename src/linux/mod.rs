@@ -30,7 +30,7 @@ impl Sandbox for LinuxSandbox {
             .set_best_effort(false)
             .handle_access(AccessFs::from_all(ABI))?
             .create()?;
-        landlock.set_no_new_privs(true);
+        landlock.as_mut().set_no_new_privs(true);
 
         Ok(Self { landlock, allow_networking: false })
     }
@@ -48,7 +48,7 @@ impl Sandbox for LinuxSandbox {
 
         let rule = PathBeneath::new(PathFd::new(path)?, access);
 
-        self.landlock.add_rule(rule)?;
+        self.landlock.as_mut().add_rule(rule)?;
 
         Ok(self)
     }
