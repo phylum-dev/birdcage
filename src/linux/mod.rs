@@ -26,11 +26,11 @@ pub struct LinuxSandbox {
 impl Sandbox for LinuxSandbox {
     fn new() -> Result<Self> {
         // Setup landlock filtering.
-        let landlock = Ruleset::new()
+        let mut landlock = Ruleset::new()
             .set_best_effort(false)
             .handle_access(AccessFs::from_all(ABI))?
-            .create()?
-            .set_no_new_privs(true);
+            .create()?;
+        landlock.as_mut().set_no_new_privs(true);
 
         Ok(Self { landlock, allow_networking: false })
     }
