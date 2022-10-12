@@ -25,6 +25,7 @@
 //! assert!(result.is_err());
 //! ```
 
+use std::env;
 use std::path::PathBuf;
 
 use crate::error::Result;
@@ -86,6 +87,18 @@ pub enum Exception {
     /// always also require read access.
     ExecuteAndRead(PathBuf),
 
+    /// Allow reading an environment variable.
+    Environment(String),
+
     /// Allow networking.
     Networking,
+}
+
+/// Restrict access to environment variables.
+pub(crate) fn restrict_env_variables(exceptions: &[String]) {
+    // Invalid unicode will cause `env::vars()` to panic, so we don't have to worry
+    // about them getting ignored.
+    for (key, _) in env::vars().filter(|(key, _)| !exceptions.contains(key)) {
+        env::remove_var(key);
+    }
 }
