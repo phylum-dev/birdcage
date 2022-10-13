@@ -22,6 +22,7 @@ pub struct LinuxSandbox {
     env_exceptions: Vec<String>,
     landlock: RulesetCreated,
     allow_networking: bool,
+    full_env: bool,
 }
 
 impl Sandbox for LinuxSandbox {
@@ -33,7 +34,7 @@ impl Sandbox for LinuxSandbox {
             .create()?;
         landlock.as_mut().set_no_new_privs(true);
 
-        Ok(Self { landlock, env_exceptions: Vec::new(), allow_networking: false })
+        Ok(Self { landlock, env_exceptions: Vec::new(), allow_networking: false, full_env: false })
     }
 
     fn add_exception(&mut self, exception: Exception) -> Result<&mut Self> {
@@ -43,6 +44,10 @@ impl Sandbox for LinuxSandbox {
             Exception::ExecuteAndRead(path) => (path, AccessFs::from_read(ABI)),
             Exception::Environment(key) => {
                 self.env_exceptions.push(key);
+                return Ok(self);
+            },
+            Exception::FullEnvironment => {
+                self.full_env = true;
                 return Ok(self);
             },
             Exception::Networking => {
@@ -60,7 +65,9 @@ impl Sandbox for LinuxSandbox {
 
     fn lock(self) -> Result<()> {
         // Remove environment variables.
-        crate::restrict_env_variables(&self.env_exceptions);
+        if !self.full_env {
+            crate::restrict_env_variables(&self.env_exceptions);
+        }
 
         // Create and apply seccomp filter.
         let mut seccomp = Filter::new();

@@ -90,6 +90,9 @@ pub enum Exception {
     /// Allow reading an environment variable.
     Environment(String),
 
+    /// Allow reading **all** environment variables.
+    FullEnvironment,
+
     /// Allow networking.
     Networking,
 }

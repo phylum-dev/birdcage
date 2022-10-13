@@ -31,11 +31,12 @@ static DEFAULT_RULE: &[u8] = b"\
 pub struct MacSandbox {
     env_exceptions: Vec<String>,
     profile: Vec<u8>,
+    full_env: bool,
 }
 
 impl Sandbox for MacSandbox {
     fn new() -> Result<Self> {
-        Ok(Self { profile: DEFAULT_RULE.to_vec(), env_exceptions: Vec::new() })
+        Ok(Self { profile: DEFAULT_RULE.to_vec(), env_exceptions: Vec::new(), full_env: false })
     }
 
     fn add_exception(&mut self, exception: Exception) -> Result<&mut Self> {
@@ -71,6 +72,10 @@ impl Sandbox for MacSandbox {
                 self.env_exceptions.push(key);
                 return Ok(self);
             },
+            Exception::FullEnvironment => {
+                self.full_env = true;
+                return Ok(self);
+            },
         }
         self.profile.write_all(&buffer)?;
         Ok(self)
@@ -78,7 +83,9 @@ impl Sandbox for MacSandbox {
 
     fn lock(self) -> Result<()> {
         // Remove environment variables.
-        crate::restrict_env_variables(&self.env_exceptions);
+        if !self.full_env {
+            crate::restrict_env_variables(&self.env_exceptions);
+        }
 
         let profile = CString::new(self.profile)
             .map_err(|_| Error::ActivationFailed("invalid profile".into()))?;
