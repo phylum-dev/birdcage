@@ -1,6 +1,6 @@
-use std::{fs, env};
 use std::net::{TcpListener, TcpStream};
 use std::process::Command;
+use std::{env, fs};
 
 use birdcage::{Birdcage, Sandbox};
 use tempfile::NamedTempFile;
