@@ -19,6 +19,7 @@ const ABI: LANDLOCK_ABI = LANDLOCK_ABI::V1;
 
 /// Linux sandboxing based on Landlock and Seccomp.
 pub struct LinuxSandbox {
+    env_exceptions: Vec<String>,
     landlock: RulesetCreated,
     allow_networking: bool,
 }
@@ -32,7 +33,7 @@ impl Sandbox for LinuxSandbox {
             .create()?;
         landlock.as_mut().set_no_new_privs(true);
 
-        Ok(Self { landlock, allow_networking: false })
+        Ok(Self { landlock, env_exceptions: Vec::new(), allow_networking: false })
     }
 
     fn add_exception(&mut self, exception: Exception) -> Result<&mut Self> {
@@ -40,6 +41,10 @@ impl Sandbox for LinuxSandbox {
             Exception::Read(path) => (path, make_bitflags!(AccessFs::{ ReadFile | ReadDir })),
             Exception::Write(path) => (path, AccessFs::from_write(ABI)),
             Exception::ExecuteAndRead(path) => (path, AccessFs::from_read(ABI)),
+            Exception::Environment(key) => {
+                self.env_exceptions.push(key);
+                return Ok(self);
+            },
             Exception::Networking => {
                 self.allow_networking = true;
                 return Ok(self);
@@ -54,6 +59,9 @@ impl Sandbox for LinuxSandbox {
     }
 
     fn lock(self) -> Result<()> {
+        // Remove environment variables.
+        crate::restrict_env_variables(&self.env_exceptions);
+
         // Create and apply seccomp filter.
         let mut seccomp = Filter::new();
         if !self.allow_networking {

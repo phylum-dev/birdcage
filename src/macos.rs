@@ -29,12 +29,13 @@ static DEFAULT_RULE: &[u8] = b"\
 
 /// macOS sandboxing based on Seatbelt.
 pub struct MacSandbox {
+    env_exceptions: Vec<String>,
     profile: Vec<u8>,
 }
 
 impl Sandbox for MacSandbox {
     fn new() -> Result<Self> {
-        Ok(Self { profile: DEFAULT_RULE.to_vec() })
+        Ok(Self { profile: DEFAULT_RULE.to_vec(), env_exceptions: Vec::new() })
     }
 
     fn add_exception(&mut self, exception: Exception) -> Result<&mut Self> {
@@ -66,12 +67,19 @@ impl Sandbox for MacSandbox {
             Exception::Networking => {
                 buffer.write_all(b"(allow network*)\n")?;
             },
+            Exception::Environment(key) => {
+                self.env_exceptions.push(key);
+                return Ok(self);
+            },
         }
         self.profile.write_all(&buffer)?;
         Ok(self)
     }
 
     fn lock(self) -> Result<()> {
+        // Remove environment variables.
+        crate::restrict_env_variables(&self.env_exceptions);
+
         let profile = CString::new(self.profile)
             .map_err(|_| Error::ActivationFailed("invalid profile".into()))?;
 
