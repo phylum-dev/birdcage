@@ -62,6 +62,6 @@ fn full_sandbox() {
     let cmd = Command::new("/bin/echo").arg("hello world").status();
     assert!(cmd.is_err());
 
-    // Ensure non-sandboxed env access is blocked.
+    // Ensure sandboxed env access is blocked.
     assert_eq!(env::var_os("TEST"), None);
 }
