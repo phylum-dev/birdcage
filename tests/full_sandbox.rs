@@ -1,6 +1,6 @@
-use std::fs;
 use std::net::{TcpListener, TcpStream};
 use std::process::Command;
+use std::{env, fs};
 
 use birdcage::{Birdcage, Sandbox};
 use tempfile::NamedTempFile;
@@ -33,6 +33,10 @@ fn full_sandbox() {
     let cmd = Command::new("/bin/echo").arg("hello world").status();
     assert!(cmd.is_ok());
 
+    // Ensure non-sandboxed env access works.
+    env::set_var("TEST", "value");
+    assert_eq!(env::var("TEST"), Ok("value".into()));
+
     // Activate our sandbox.
     Birdcage::new().unwrap().lock().unwrap();
 
@@ -57,4 +61,7 @@ fn full_sandbox() {
     // Ensure sandboxed execution is blocked.
     let cmd = Command::new("/bin/echo").arg("hello world").status();
     assert!(cmd.is_err());
+
+    // Ensure sandboxed env access is blocked.
+    assert_eq!(env::var_os("TEST"), None);
 }
