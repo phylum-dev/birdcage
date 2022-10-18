@@ -22,6 +22,10 @@ struct Cli {
     #[clap(short = 'e', long, value_name = "PATH", value_hint = ValueHint::AnyPath)]
     allow_execute: Vec<PathBuf>,
 
+    /// Allowed environment variable access.
+    #[clap(long, value_name = "VAR")]
+    allow_env: Vec<String>,
+
     /// Allow networking.
     #[clap(short = 'n', long)]
     allow_networking: bool,
@@ -50,6 +54,10 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     for path in cli.allow_execute {
         birdcage.add_exception(Exception::ExecuteAndRead(path))?;
+    }
+
+    for var in cli.allow_env {
+        birdcage.add_exception(Exception::Environment(var))?;
     }
 
     if cli.allow_networking {
