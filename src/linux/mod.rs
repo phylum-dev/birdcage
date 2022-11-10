@@ -4,8 +4,8 @@
 //! combined with seccomp for anything other than the filesystem.
 
 use landlock::{
-    make_bitflags, Access, AccessFs, Compatible, PathBeneath, PathFd, Ruleset, RulesetCreated,
-    RulesetStatus, ABI as LANDLOCK_ABI,
+    make_bitflags, Access, AccessFs, Compatible, PathBeneath, PathFd, Ruleset, RulesetAttr,
+    RulesetCreated, RulesetCreatedAttr, RulesetStatus, ABI as LANDLOCK_ABI,
 };
 
 use crate::error::{Error, Result};
