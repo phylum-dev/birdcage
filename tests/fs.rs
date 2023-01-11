@@ -26,3 +26,21 @@ fn partial_fs() {
     let result = fs::read_to_string(private_path);
     assert!(result.is_err());
 }
+
+#[test]
+fn exec_implies_read() {
+    const FILE_CONTENT: &str = "expected content";
+
+    // Setup our test file.
+    let path = NamedTempFile::new().unwrap();
+    fs::write(&path, FILE_CONTENT.as_bytes()).unwrap();
+
+    // Activate our sandbox.
+    let mut birdcage = Birdcage::new().unwrap();
+    birdcage.add_exception(Exception::ExecuteAndRead(path.path().into())).unwrap();
+    birdcage.lock().unwrap();
+
+    // Read access to the file is allowed.
+    let content = fs::read_to_string(path).unwrap();
+    assert_eq!(content, FILE_CONTENT);
+}
