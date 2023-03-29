@@ -1,7 +1,5 @@
 # Birdcage
 
-**This library is still under development and not ready to be used yet.**
-
 ## About
 
 Birdcage is a cross-platform embeddable sandboxing library allowing restrictions
