@@ -13,11 +13,11 @@ details). To better protect yourself from these security risks, [sign up now]!
 [blog post]: https://blog.phylum.io/sandboxing-package-installations-arms-developers-with-defense-against-open-source-attacks-and-unintended-consequences/
 [sign up now]: https://www.phylum.io/
 
-Birdcage **is not** a complete sandbox preventing all side-effects or permanent
-damage. Applications can still execute most system calls, which is especially
-dangerous when execution is performed as root. Do not use Birdcage as a safety
-barrier for known-malicious code and keep other security mechanisms like user
-restrictions in place.
+Birdcage focuses **only** on Filesystem and Network operations. It **is not** a
+complete sandbox preventing all side-effects or permanent damage. Applications
+can still execute most system calls, which is especially dangerous when
+execution is performed as root. Birdcage should be combined with other security
+mechanisms, especially if you are executing known-malicious code.
 
 ## Usage
 
