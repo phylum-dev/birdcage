@@ -26,13 +26,23 @@ can still execute most system calls, which is especially dangerous when
 execution is performed as root. Birdcage should be combined with other security
 mechanisms, especially if you are executing known-malicious code.
 
-## Usage
+## Example
 
-You can run applications inside Birdcage's sandbox by running the `sandbox`
-example:
+An example for using Birdcage's API can be found in `./examples/sandbox`, which
+runs an application with CLI-configurable restrictions applied.
+
+Trying to run without an exceptions will produce an error:
 
 ```bash
-cargo run --example sandbox -- -e /usr/bin/echo -e /usr/lib echo "Hello, Sandbox\!"
+$ cargo run --example sandbox -- echo "Hello, Sandbox\!"
+Error: Os { code: 13, kind: PermissionDenied, message: "Permission denied" }
+```
+
+Running the same command with explicit permissions allows execution:
+
+```bash
+$ cargo run --example sandbox -- -e /usr/bin/echo -e /usr/lib echo "Hello, Sandbox\!"
+Hello, Sandbox!
 ```
 
 Check out `cargo run --example sandbox -- --help` for more information on how to
