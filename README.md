@@ -11,9 +11,10 @@
 Birdcage is a cross-platform embeddable sandboxing library allowing restrictions
 to Filesystem and Network operations using native operating system APIs.
 
-Birdcage was originally developed for use the [Phylum CLI] as an extra layer of
-protection against potentially malicious dependencies (see the [blog post] for
-details). To better protect yourself from these security risks, [sign up now]!
+Birdcage was originally developed for use by the [Phylum CLI] as an extra layer
+of protection against potentially malicious dependencies (see the [blog post]
+for details). To better protect yourself from these security risks, [sign up
+now]!
 
 [phylum cli]: https://github.com/phylum-dev/cli
 [blog post]: https://blog.phylum.io/sandboxing-package-installations-arms-developers-with-defense-against-open-source-attacks-and-unintended-consequences/
