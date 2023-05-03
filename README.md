@@ -1,5 +1,11 @@
 # Birdcage
 
+<div align="center">
+
+![Birdcage logo](./assets/Birdcage.png)
+
+</div>
+
 ## About
 
 Birdcage is a cross-platform embeddable sandboxing library allowing restrictions
