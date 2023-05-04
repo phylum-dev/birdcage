@@ -14,7 +14,7 @@
 [CoC]: https://github.com/phylum-dev/birdcage/blob/main/CODE_OF_CONDUCT.md
 [discord_invite]: https://discord.gg/Fe6pr5eW6p
 
-![Birdcage logo](./assets/Birdcage.png)
+[![Birdcage logo](./assets/Birdcage.png)][protection]
 
 </div>
 
@@ -44,7 +44,7 @@ mechanisms, especially if you are executing known-malicious code.
 An example for using Birdcage's API can be found in `./examples/sandbox`, which
 runs an application with CLI-configurable restrictions applied.
 
-Trying to run without an exceptions will produce an error:
+Trying to run without any exceptions will produce an error:
 
 ```bash
 $ cargo run --example sandbox -- echo "Hello, Sandbox\!"
@@ -64,7 +64,7 @@ use the example.
 ## Supported Platforms
 
  - Linux (5.13+) via [Landlock] and [seccomp]
- - macOS via `sandbox_init()` (aka Seatbelt).
+ - macOS via `sandbox_init()` (aka Seatbelt)
 
 [landlock]: https://www.kernel.org/doc/html/latest/userspace-api/landlock.html
 [seccomp]: https://man7.org/linux/man-pages/man2/seccomp.2.html
