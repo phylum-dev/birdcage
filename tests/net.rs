@@ -31,7 +31,7 @@ fn allow_io_uring() {
         libc::syscall(libc::SYS_io_uring_setup, io_uring_params.len(), io_uring_params.as_mut_ptr())
     };
 
-    assert_eq!(result >= 0);
+    assert!(result >= 0);
 }
 
 #[cfg(target_os = "linux")]
