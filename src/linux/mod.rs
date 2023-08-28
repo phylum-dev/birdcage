@@ -8,9 +8,10 @@ use std::io::Error as IoError;
 
 use bitflags::bitflags;
 use landlock::{
-    make_bitflags, Access, AccessFs, Compatible, PathBeneath, PathFd, Ruleset, RulesetAttr,
-    RulesetCreated, RulesetCreatedAttr, RulesetStatus, ABI as LANDLOCK_ABI,
+    make_bitflags, Access, AccessFs, BitFlags, Compatible, PathBeneath, PathFd, Ruleset,
+    RulesetAttr, RulesetCreated, RulesetCreatedAttr, RulesetStatus,
 };
+pub use landlock::{CompatLevel, ABI as LANDLOCK_ABI};
 
 use crate::error::{Error, Result};
 use crate::linux::seccomp::NetworkFilter;
@@ -29,16 +30,41 @@ pub struct LinuxSandbox {
     full_env: bool,
 }
 
-impl Sandbox for LinuxSandbox {
-    fn new() -> Result<Self> {
-        // Setup landlock filtering.
-        let mut landlock = Ruleset::new()
-            .set_best_effort(false)
-            .handle_access(AccessFs::from_all(ABI))?
-            .create()?;
-        landlock.as_mut().set_no_new_privs(true);
+impl LinuxSandbox {
+    /// Create a customized Linux sandbox.
+    ///
+    /// The [`min_landlock_abi`] argument defines the minimum Landlock Kernel
+    /// ABI version which must be supported. Sandboxing will fail on systems
+    /// which do not support this.
+    ///
+    /// All landlock ABI versions after [`min_landlock_abi`] versions are used
+    /// on systems that support them, but are ignored otherwise. This means
+    /// that the sandbox will be created without any error even if these are
+    /// not supported.
+    pub fn new_with_version(min_landlock_abi: LANDLOCK_ABI) -> Result<Self> {
+        let mut ruleset = Ruleset::new();
+
+        // Require at least `min_landlock_abi`.
+        (&mut ruleset).set_compatibility(CompatLevel::HardRequirement);
+        (&mut ruleset).handle_access(AccessFs::from_all(min_landlock_abi))?;
+
+        // Add optional checks for everything after `min_landlock_abi`.
+        //
+        // NOTE: This will require these access permissions on systems that support
+        // checking for them, while ignoring them on all other systems.
+        (&mut ruleset).set_compatibility(CompatLevel::BestEffort);
+        (&mut ruleset).handle_access(BitFlags::<AccessFs>::all())?;
+
+        let mut landlock = ruleset.create()?;
+        (&mut landlock).set_no_new_privs(true);
 
         Ok(Self { landlock, env_exceptions: Vec::new(), allow_networking: false, full_env: false })
+    }
+}
+
+impl Sandbox for LinuxSandbox {
+    fn new() -> Result<Self> {
+        Self::new_with_version(ABI)
     }
 
     fn add_exception(&mut self, exception: Exception) -> Result<&mut Self> {
@@ -62,7 +88,7 @@ impl Sandbox for LinuxSandbox {
 
         let rule = PathBeneath::new(PathFd::new(path)?, access);
 
-        self.landlock.as_mut().add_rule(rule)?;
+        (&mut self.landlock).add_rule(rule)?;
 
         Ok(self)
     }
@@ -85,10 +111,10 @@ impl Sandbox for LinuxSandbox {
         let status = self.landlock.restrict_self()?;
 
         // Ensure all restrictions were properly applied.
-        if status.no_new_privs && status.ruleset == RulesetStatus::FullyEnforced {
-            Ok(())
-        } else {
+        if status.ruleset == RulesetStatus::NotEnforced || !status.no_new_privs {
             Err(Error::ActivationFailed("sandbox could not be fully enforced".into()))
+        } else {
+            Ok(())
         }
     }
 }
