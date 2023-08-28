@@ -49,6 +49,11 @@ impl Filter {
         self.rules.insert(libc::SYS_socketpair, socket_rule.clone());
         self.rules.insert(libc::SYS_socket, socket_rule);
 
+        // Restrict io_uring.
+        self.rules.insert(libc::SYS_io_uring_setup, Vec::new());
+        self.rules.insert(libc::SYS_io_uring_enter, Vec::new());
+        self.rules.insert(libc::SYS_io_uring_register, Vec::new());
+
         Ok(())
     }
 
