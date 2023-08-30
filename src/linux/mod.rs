@@ -9,7 +9,7 @@ use landlock::{
 };
 
 use crate::error::{Error, Result};
-use crate::linux::seccomp::Filter;
+use crate::linux::seccomp::NetworkFilter;
 use crate::{Exception, Sandbox};
 
 mod seccomp;
@@ -70,11 +70,9 @@ impl Sandbox for LinuxSandbox {
         }
 
         // Create and apply seccomp filter.
-        let mut seccomp = Filter::new();
         if !self.allow_networking {
-            seccomp.deny_networking()?;
+            NetworkFilter::apply()?;
         }
-        seccomp.apply()?;
 
         // Apply landlock rules.
         let status = self.landlock.restrict_self()?;
