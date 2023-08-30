@@ -70,11 +70,9 @@ impl Sandbox for LinuxSandbox {
         }
 
         // Create and apply seccomp filter.
-        let mut seccomp = NetworkFilter::new()?;
-        if self.allow_networking {
-            seccomp.allow_networking();
+        if !self.allow_networking {
+            NetworkFilter::apply()?;
         }
-        seccomp.apply()?;
 
         // Apply landlock rules.
         let status = self.landlock.restrict_self()?;

@@ -16,22 +16,11 @@ const ARCH: TargetArch = TargetArch::aarch64;
 
 /// Seccomp network filter.
 #[derive(Default)]
-pub struct NetworkFilter {
-    allow_networking: bool,
-}
+pub struct NetworkFilter;
 
 impl NetworkFilter {
-    pub fn new() -> Result<Self> {
-        Ok(Self { allow_networking: false })
-    }
-
     /// Apply all rules in this filter.
-    pub fn apply(self) -> Result<()> {
-        // Do not apply any filter when networking is allowed.
-        if self.allow_networking {
-            return Ok(());
-        }
-
+    pub fn apply() -> Result<()> {
         let mut rules = BTreeMap::new();
 
         // Add unconditionally allowed syscalls.
@@ -54,11 +43,6 @@ impl NetworkFilter {
         seccompiler::apply_filter(&program)?;
 
         Ok(())
-    }
-
-    /// Allow all network access.
-    pub fn allow_networking(&mut self) {
-        self.allow_networking = true;
     }
 
     /// Allow local filesystem sockets.
