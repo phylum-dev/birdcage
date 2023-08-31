@@ -7,3 +7,9 @@ The sections should follow the order `Packaging`, `Added`, `Changed`, `Fixed` an
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
+
+## [0.3.0] - 2023-08-31
+
+### Changed
+
+- Linux seccomp network filtering now uses a whitelist instead of a blacklist
