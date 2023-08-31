@@ -1,6 +1,6 @@
 [package]
 name = "birdcage"
-version = "0.3.0"
+version = "0.3.1"
 description = "Cross-platform embeddable sandbox"
 authors = ["Phylum, Inc. <engineering@phylum.io>"]
 repository = "https://github.com/phylum-dev/birdcage"
