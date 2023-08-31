@@ -51,6 +51,20 @@ fn block_io_uring() {
     assert_eq!(IoError::last_os_error().kind(), IoErrorKind::PermissionDenied);
 }
 
+#[cfg(target_os = "linux")]
+#[test]
+fn allow_local_sockets() {
+    let birdcage = Birdcage::new().unwrap();
+    birdcage.lock().unwrap();
+
+    let fd = unsafe { libc::socket(libc::AF_UNIX, libc::SOCK_STREAM, 0) };
+    if fd < 0 {
+        panic!("AF_UNIX socket creation failed: {}", IoError::last_os_error());
+    }
+
+    unsafe { libc::close(fd) };
+}
+
 #[repr(C)]
 #[derive(Default)]
 struct IoUringParams {

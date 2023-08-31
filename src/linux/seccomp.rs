@@ -56,6 +56,7 @@ impl NetworkFilter {
             SeccompCmpOp::Eq,
             libc::AF_UNIX as u64,
         )?;
+        let unix_rule = SeccompRule::new(vec![allow_unix])?;
 
         // Allow local IPC AF_NETLINK sockets.
         let allow_netlink = SeccompCondition::new(
@@ -64,8 +65,9 @@ impl NetworkFilter {
             SeccompCmpOp::Eq,
             libc::AF_NETLINK as u64,
         )?;
+        let netlink_rule = SeccompRule::new(vec![allow_netlink])?;
 
-        let socket_rule = vec![SeccompRule::new(vec![allow_unix, allow_netlink])?];
+        let socket_rule = vec![unix_rule, netlink_rule];
 
         // Restrict socket creation to allowed socket domain types.
         rules.insert(libc::SYS_socketpair, socket_rule.clone());
