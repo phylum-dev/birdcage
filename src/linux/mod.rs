@@ -64,14 +64,14 @@ impl LinuxSandbox {
 
 impl Sandbox for LinuxSandbox {
     fn new() -> Result<Self> {
-        Self::new_with_version(ABI)
+        Self::new_with_version(LANDLOCK_ABI::V1)
     }
 
     fn add_exception(&mut self, exception: Exception) -> Result<&mut Self> {
         let (path, access) = match exception {
             Exception::Read(path) => (path, make_bitflags!(AccessFs::{ ReadFile | ReadDir })),
-            Exception::Write(path) => (path, AccessFs::from_write(ABI)),
-            Exception::ExecuteAndRead(path) => (path, AccessFs::from_read(ABI)),
+            Exception::Write(path) => (path, AccessFs::from_write(LANDLOCK_ABI::V3)),
+            Exception::ExecuteAndRead(path) => (path, AccessFs::from_read(LANDLOCK_ABI::V3)),
             Exception::Environment(key) => {
                 self.env_exceptions.push(key);
                 return Ok(self);
