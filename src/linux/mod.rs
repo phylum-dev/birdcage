@@ -7,11 +7,11 @@ use std::fs;
 use std::io::Error as IoError;
 
 use bitflags::bitflags;
+pub use landlock::ABI as LANDLOCK_ABI;
 use landlock::{
-    make_bitflags, Access, AccessFs, BitFlags, Compatible, PathBeneath, PathFd, Ruleset,
-    RulesetAttr, RulesetCreated, RulesetCreatedAttr, RulesetStatus,
+    make_bitflags, Access, AccessFs, BitFlags, CompatLevel, Compatible, PathBeneath, PathFd,
+    Ruleset, RulesetAttr, RulesetCreated, RulesetCreatedAttr, RulesetStatus,
 };
-pub use landlock::{CompatLevel, ABI as LANDLOCK_ABI};
 
 use crate::error::{Error, Result};
 use crate::linux::seccomp::NetworkFilter;
