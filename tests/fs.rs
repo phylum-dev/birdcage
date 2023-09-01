@@ -33,17 +33,24 @@ fn main() {
 #[cfg(target_os = "linux")]
 #[test]
 fn landlock_v3_truncate() {
+    // Create file with non-zero length.
     let file = NamedTempFile::new().unwrap();
     let path = file.path();
     fs::write(path, "truncate this").unwrap();
 
+    // Enable our sandbox.
     let mut birdcage = Birdcage::new().unwrap();
     birdcage.add_exception(Exception::Write(path.into())).unwrap();
+    birdcage.add_exception(Exception::Read(path.into())).unwrap();
     birdcage.lock().unwrap();
 
+    // Truncate the entire file.
     let path_str = path.to_string_lossy().to_string();
     let c_path = CString::new(path_str).unwrap();
     let result = unsafe { libc::truncate(c_path.as_ptr(), 0) };
-
     assert_eq!(result, 0);
+
+    // Ensure the file is empty.
+    let content = fs::read_to_string(path).unwrap();
+    assert_eq!(content, String::new());
 }
