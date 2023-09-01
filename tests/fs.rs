@@ -2,6 +2,8 @@
 use std::ffi::CString;
 use std::fs;
 
+#[cfg(target_os = "linux")]
+use birdcage::linux::LANDLOCK_ABI;
 use birdcage::{Birdcage, Exception, Sandbox};
 #[cfg(target_os = "linux")]
 use libc;
@@ -39,7 +41,7 @@ fn landlock_v3_truncate() {
     fs::write(path, "truncate this").unwrap();
 
     // Enable our sandbox.
-    let mut birdcage = Birdcage::new().unwrap();
+    let mut birdcage = Birdcage::new_with_version(LANDLOCK_ABI::V2).unwrap();
     birdcage.add_exception(Exception::Write(path.into())).unwrap();
     birdcage.add_exception(Exception::Read(path.into())).unwrap();
     birdcage.lock().unwrap();
