@@ -34,7 +34,7 @@ struct Cli {
     cmd: String,
 
     /// Arguments for the sandboxed command.
-    #[clap(allow_hyphen_values = true, multiple_values = true)]
+    #[clap(allow_hyphen_values = true, num_args = 0..)]
     args: Vec<String>,
 }
 
