@@ -1,7 +1,7 @@
 //! Linux sandboxing.
 //!
-//! This module implements sandboxing on Linux based on the Landlock LSM,
-//! combined with namespaces for network filtering.
+//! This module implements sandboxing on Linux based on the Landlock LSM, Linux
+//! namespaces, and seccomp.
 
 use std::fs;
 use std::io::Error as IoError;
@@ -13,7 +13,10 @@ use landlock::{
 };
 
 use crate::error::{Error, Result};
+use crate::linux::seccomp::NetworkFilter;
 use crate::{Exception, Sandbox};
+
+mod seccomp;
 
 /// Minimum landlock ABI version.
 const ABI: LANDLOCK_ABI = LANDLOCK_ABI::V1;
@@ -70,13 +73,12 @@ impl Sandbox for LinuxSandbox {
             crate::restrict_env_variables(&self.env_exceptions);
         }
 
-        // Enter a user namespace to unbind abstract namespace sockets.
-        create_user_namespace(false)?;
+        // Clear abstract namespace by entering a new user namespace.
+        let _ = create_user_namespace(false);
 
         // Create network namespace.
         if !self.allow_networking {
-            create_user_namespace(true)?;
-            unshare(Namespaces::NETWORK)?;
+            restrict_networking()?;
         }
 
         // Apply landlock rules.
@@ -91,12 +93,24 @@ impl Sandbox for LinuxSandbox {
     }
 }
 
+/// Restrict networking using seccomp and namespaces.
+fn restrict_networking() -> Result<()> {
+    // Create network namespace.
+    let result = create_user_namespace(true).and_then(|_| unshare(Namespaces::NETWORK));
+
+    // Apply seccomp network filter.
+    match NetworkFilter::apply() {
+        _ if result.is_ok() => Ok(()),
+        result => result,
+    }
+}
+
 /// Create a new user namespace.
 ///
 /// If the `become_root` flag is set, then the current user will be mapped to
 /// UID 0 inside the namespace. Otherwise the current user will be mapped to its
 /// UID of the parent namespace.
-pub(crate) fn create_user_namespace(become_root: bool) -> Result<()> {
+fn create_user_namespace(become_root: bool) -> Result<()> {
     // Get the current UID.
     let uid = unsafe { libc::getuid() };
 
@@ -113,7 +127,7 @@ pub(crate) fn create_user_namespace(become_root: bool) -> Result<()> {
 }
 
 /// Enter a namespace.
-pub(crate) fn unshare(namespaces: Namespaces) -> Result<()> {
+fn unshare(namespaces: Namespaces) -> Result<()> {
     let result = unsafe { libc::unshare(namespaces.bits()) };
     if result == 0 {
         Ok(())
@@ -125,7 +139,7 @@ pub(crate) fn unshare(namespaces: Namespaces) -> Result<()> {
 bitflags! {
     /// Unshare system call namespace flags.
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-    pub(crate) struct Namespaces: libc::c_int {
+    struct Namespaces: libc::c_int {
         /// Unshare the file descriptor table, so that the calling process no longer
         /// shares its file descriptors with any other process.
         const FILES = libc::CLONE_FILES;

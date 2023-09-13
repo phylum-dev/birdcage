@@ -9,6 +9,8 @@ use std::result::Result as StdResult;
 
 #[cfg(target_os = "linux")]
 use landlock::{PathFdError, RulesetError};
+#[cfg(target_os = "linux")]
+use seccompiler::{BackendError, Error as SeccompError};
 
 /// Birdcage result type.
 pub type Result<T> = StdResult<T, Error>;
@@ -19,6 +21,10 @@ pub enum Error {
     /// Landlock ruleset creation/modification error.
     #[cfg(target_os = "linux")]
     Ruleset(RulesetError),
+
+    /// Seccomp errors.
+    #[cfg(target_os = "linux")]
+    Seccomp(SeccompError),
 
     /// Invalid sandbox exception path.
     #[cfg(target_os = "linux")]
@@ -41,6 +47,8 @@ impl Display for Error {
             #[cfg(target_os = "linux")]
             Self::Ruleset(error) => write!(f, "landlock ruleset error: {error}"),
             #[cfg(target_os = "linux")]
+            Self::Seccomp(error) => write!(f, "seccomp error: {error}"),
+            #[cfg(target_os = "linux")]
             Self::InvalidPath(error) => write!(f, "invalid path: {error}"),
             #[cfg(target_os = "macos")]
             Self::InvalidPath(error) => write!(f, "invalid path: {error:?}"),
@@ -56,6 +64,20 @@ impl Display for Error {
 impl From<RulesetError> for Error {
     fn from(error: RulesetError) -> Self {
         Self::Ruleset(error)
+    }
+}
+
+#[cfg(target_os = "linux")]
+impl From<SeccompError> for Error {
+    fn from(error: SeccompError) -> Self {
+        Self::Seccomp(error)
+    }
+}
+
+#[cfg(target_os = "linux")]
+impl From<BackendError> for Error {
+    fn from(error: BackendError) -> Self {
+        Self::Seccomp(SeccompError::Backend(error))
     }
 }
 
