@@ -2,8 +2,7 @@ use std::env;
 
 use birdcage::{Birdcage, Exception, Sandbox};
 
-#[test]
-fn full_env() {
+fn main() {
     // Setup our environment variables
     env::set_var("PUBLIC", "GOOD");
 

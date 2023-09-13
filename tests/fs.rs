@@ -3,8 +3,7 @@ use std::fs;
 use birdcage::{Birdcage, Exception, Sandbox};
 use tempfile::NamedTempFile;
 
-#[test]
-fn partial_fs() {
+fn main() {
     const FILE_CONTENT: &str = "expected content";
 
     // Setup our test files.
