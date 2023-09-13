@@ -42,7 +42,7 @@ impl LinuxSandbox {
     /// that the sandbox will be created without any error even if these are
     /// not supported.
     pub fn new_with_version(min_landlock_abi: LANDLOCK_ABI) -> Result<Self> {
-        let mut ruleset = Ruleset::new();
+        let mut ruleset = Ruleset::default();
 
         // Require at least `min_landlock_abi`.
         (&mut ruleset).set_compatibility(CompatLevel::HardRequirement);
