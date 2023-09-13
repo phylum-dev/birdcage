@@ -1,6 +1,6 @@
 //! Linux sandboxing.
 //!
-//! This module implements sandboxing on Linux based on the Landlock LSM, Linux
+//! This module implements sandboxing on Linux based on the Landlock LSM,
 //! namespaces, and seccomp.
 
 use std::fs;
