@@ -112,8 +112,8 @@ fn restrict_networking() -> Result<()> {
 /// UID of the parent namespace.
 fn create_user_namespace(become_root: bool) -> Result<()> {
     // Get the current UID/GID.
-    let uid = unsafe { libc::getuid() };
-    let gid = unsafe { libc::getgid() };
+    let uid = unsafe { libc::geteuid() };
+    let gid = unsafe { libc::getegid() };
 
     // Create the namespace.
     unshare(Namespaces::USER)?;
