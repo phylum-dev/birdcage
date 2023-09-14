@@ -111,17 +111,19 @@ fn restrict_networking() -> Result<()> {
 /// UID 0 inside the namespace. Otherwise the current user will be mapped to its
 /// UID of the parent namespace.
 fn create_user_namespace(become_root: bool) -> Result<()> {
-    // Get the current UID.
+    // Get the current UID/GID.
     let uid = unsafe { libc::getuid() };
+    let gid = unsafe { libc::getgid() };
 
     // Create the namespace.
     unshare(Namespaces::USER)?;
 
     // Map the UID and GID.
-    let map = if become_root { format!("0 {uid} 1\n") } else { format!("{uid} {uid} 1\n") };
-    fs::write("/proc/self/uid_map", map.as_bytes())?;
+    let uid_map = if become_root { format!("0 {uid} 1\n") } else { format!("{uid} {uid} 1\n") };
+    let gid_map = if become_root { format!("0 {gid} 1\n") } else { format!("{gid} {gid} 1\n") };
+    fs::write("/proc/self/uid_map", uid_map.as_bytes())?;
     fs::write("/proc/self/setgroups", b"deny")?;
-    fs::write("/proc/self/gid_map", map.as_bytes())?;
+    fs::write("/proc/self/gid_map", gid_map.as_bytes())?;
 
     Ok(())
 }
