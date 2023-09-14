@@ -44,6 +44,16 @@ name = "net"
 path = "tests/net.rs"
 harness = false
 
+[[test]]
+name = "net_without_seccomp"
+path = "tests/net_without_seccomp.rs"
+harness = false
+
+[[test]]
+name = "net_without_namespaces"
+path = "tests/net_without_namespaces.rs"
+harness = false
+
 [target.'cfg(target_os = "linux")'.dependencies]
 seccompiler = "0.2.0"
 landlock = "0.2.0"
