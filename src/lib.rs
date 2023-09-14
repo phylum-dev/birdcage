@@ -69,9 +69,7 @@ pub trait Sandbox: Sized {
     ///
     /// # Errors
     ///
-    /// Sandboxing will fail if the calling process is not single-threaded, or
-    /// has previously been sandboxed. It is recommended to spawn a new process
-    /// before sandboxing to avoid these issues.
+    /// Sandboxing will fail if the calling process is not single-threaded.
     fn lock(self) -> Result<()>;
 }
 
