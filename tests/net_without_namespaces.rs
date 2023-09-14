@@ -31,10 +31,17 @@ fn main() {
     seccompiler::apply_filter(&program).unwrap();
 
     let birdcage = Birdcage::new().unwrap();
-    birdcage.lock().unwrap();
+    let result = birdcage.lock();
 
-    let result = TcpStream::connect("8.8.8.8:443");
-    assert!(result.is_err());
+    match result {
+        // Seccomp is supported, so networking should still be blocked.
+        Ok(_) => {
+            let result = TcpStream::connect("8.8.8.8:443");
+            assert!(result.is_err());
+        },
+        // Seccomp isn't supported, so failure is desired.
+        Err(_) => (),
+    }
 }
 
 #[cfg(not(target_os = "linux"))]
