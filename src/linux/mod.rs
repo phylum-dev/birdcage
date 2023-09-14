@@ -99,7 +99,8 @@ fn restrict_networking() -> Result<()> {
     let result = create_user_namespace(true).and_then(|_| unshare(Namespaces::NETWORK));
 
     // Apply seccomp network filter.
-    result.or_else(|_| NetworkFilter::apply())
+    let seccomp_result = NetworkFilter::apply();
+    result.or(seccomp_result)
 }
 
 /// Create a new user namespace.
