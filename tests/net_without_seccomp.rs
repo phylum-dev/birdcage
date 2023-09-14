@@ -31,6 +31,7 @@ fn main() {
     .unwrap();
     let rule = SeccompRule::new(vec![seccomp_prctl]).unwrap();
     rules.insert(libc::SYS_prctl, vec![rule]);
+    rules.insert(libc::SYS_seccomp, Vec::new());
     let filter = SeccompFilter::new(
         rules,
         SeccompAction::Allow,
