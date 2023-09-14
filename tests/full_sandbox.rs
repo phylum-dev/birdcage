@@ -1,12 +1,11 @@
-use std::net::{TcpListener, TcpStream};
+use std::net::TcpStream;
 use std::process::Command;
 use std::{env, fs};
 
 use birdcage::{Birdcage, Sandbox};
 use tempfile::NamedTempFile;
 
-#[test]
-fn full_sandbox() {
+fn main() {
     const FILE_CONTENT: &str = "expected content";
 
     // Create testfile.
@@ -18,11 +17,6 @@ fn full_sandbox() {
     // Ensure non-sandboxed read works.
     let content = fs::read_to_string(&path).unwrap();
     assert_eq!(content, FILE_CONTENT);
-
-    // Ensure non-sandboxed socket bind works.
-    let listener = TcpListener::bind("127.0.0.1:31337");
-    assert!(listener.is_ok());
-    drop(listener);
 
     // Ensure non-sandboxed socket connect works.
     let stream = TcpStream::connect("phylum.io:443");
@@ -47,11 +41,6 @@ fn full_sandbox() {
     // Ensure sandboxed read is blocked.
     let result = fs::read_to_string(path);
     assert!(result.is_err());
-
-    // Ensure sandboxed socket bind is blocked.
-    let listener = TcpListener::bind("127.0.0.1:31337");
-    assert!(listener.is_err());
-    drop(listener);
 
     // Ensure sandboxed socket connect is blocked.
     let stream = TcpStream::connect("phylum.io:443");

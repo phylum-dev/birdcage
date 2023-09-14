@@ -4,13 +4,11 @@ use std::error::Error as StdError;
 #[cfg(target_os = "macos")]
 use std::ffi::OsString;
 use std::fmt::{self, Display, Formatter};
-#[cfg(target_os = "macos")]
 use std::io::Error as IoError;
 use std::result::Result as StdResult;
 
 #[cfg(target_os = "linux")]
 use landlock::{PathFdError, RulesetError};
-#[cfg(target_os = "linux")]
 #[cfg(target_os = "linux")]
 use seccompiler::{BackendError, Error as SeccompError};
 
@@ -35,7 +33,6 @@ pub enum Error {
     InvalidPath(InvalidPathError),
 
     /// I/O error.
-    #[cfg(target_os = "macos")]
     Io(IoError),
 
     /// Sandbox activation failed.
@@ -55,7 +52,6 @@ impl Display for Error {
             Self::InvalidPath(error) => write!(f, "invalid path: {error}"),
             #[cfg(target_os = "macos")]
             Self::InvalidPath(error) => write!(f, "invalid path: {error:?}"),
-            #[cfg(target_os = "macos")]
             Self::Io(error) => write!(f, "input/output error: {error}"),
             Self::ActivationFailed(error) => {
                 write!(f, "failed to initialize a sufficient sandbox: {error}")
@@ -99,7 +95,6 @@ impl From<InvalidPathError> for Error {
     }
 }
 
-#[cfg(target_os = "macos")]
 impl From<IoError> for Error {
     fn from(error: IoError) -> Self {
         Self::Io(error)

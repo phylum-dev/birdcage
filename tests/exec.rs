@@ -3,8 +3,7 @@ use std::process::Command;
 
 use birdcage::{Birdcage, Exception, Sandbox};
 
-#[test]
-fn execution() {
+fn main() {
     let mut birdcage = Birdcage::new().unwrap();
     birdcage.add_exception(Exception::ExecuteAndRead("/usr/bin/true".into())).unwrap();
     birdcage.add_exception(Exception::ExecuteAndRead("/usr/lib".into())).unwrap();

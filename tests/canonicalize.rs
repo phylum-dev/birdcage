@@ -2,8 +2,7 @@ use std::fs;
 
 use birdcage::{Birdcage, Exception, Sandbox};
 
-#[test]
-fn canonicalize() {
+fn main() {
     let mut birdcage = Birdcage::new().unwrap();
     birdcage.add_exception(Exception::Read("./".into())).unwrap();
     birdcage.lock().unwrap();

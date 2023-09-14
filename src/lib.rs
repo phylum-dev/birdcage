@@ -65,7 +65,11 @@ pub trait Sandbox: Sized {
     /// prohibit access to this resource without creating a new sandbox.
     fn add_exception(&mut self, exception: Exception) -> Result<&mut Self>;
 
-    /// Apply the sandbox restrictions to the current thread.
+    /// Apply the sandbox restrictions to the current process.
+    ///
+    /// # Errors
+    ///
+    /// Sandboxing will fail if the calling process is not single-threaded.
     fn lock(self) -> Result<()>;
 }
 

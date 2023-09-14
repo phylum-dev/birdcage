@@ -458,3 +458,69 @@ const SYSCALL_WHITELIST: &[libc::c_long] = &[
     libc::SYS_futex_waitv,
     libc::SYS_set_mempolicy_home_node,
 ];
+
+#[cfg(test)]
+mod tests {
+    use std::io::{Error as IoError, ErrorKind as IoErrorKind};
+
+    use super::*;
+
+    #[test]
+    fn block_io_uring() {
+        NetworkFilter::apply().unwrap();
+
+        let mut io_uring_params =
+            vec![IoUringParams { flags: 1, sq_entries: 32, cq_entries: 32, ..Default::default() }];
+
+        let result = unsafe {
+            libc::syscall(
+                libc::SYS_io_uring_setup,
+                io_uring_params.len(),
+                io_uring_params.as_mut_ptr(),
+            )
+        };
+
+        assert_eq!(result, -1);
+        assert_eq!(IoError::last_os_error().kind(), IoErrorKind::PermissionDenied);
+    }
+
+    #[test]
+    fn allow_local_sockets() {
+        NetworkFilter::apply().unwrap();
+
+        let fd = unsafe { libc::socket(libc::AF_UNIX, libc::SOCK_STREAM, 0) };
+        if fd < 0 {
+            panic!("AF_UNIX socket creation failed: {}", IoError::last_os_error());
+        }
+
+        unsafe { libc::close(fd) };
+    }
+
+    #[repr(C)]
+    #[derive(Default)]
+    struct IoUringParams {
+        sq_entries: u32,
+        cq_entries: u32,
+        flags: u32,
+        sq_thread_cpu: u32,
+        sq_thread_idle: u32,
+        features: u32,
+        wq_fd: u32,
+        resv: [u32; 3],
+        sq_off: IoSqringOffsets,
+        cq_off: IoSqringOffsets,
+    }
+
+    #[repr(C)]
+    #[derive(Default)]
+    struct IoSqringOffsets {
+        head: u32,
+        tail: u32,
+        ring_mask: u32,
+        ring_entries: u32,
+        flags: u32,
+        dropped: u32,
+        array: u32,
+        resv: [u32; 3],
+    }
+}
