@@ -9,7 +9,7 @@ use std::io::Error as IoError;
 use bitflags::bitflags;
 pub use landlock::ABI as LANDLOCK_ABI;
 use landlock::{
-    make_bitflags, Access, AccessFs, BitFlags, CompatLevel, Compatible, PathBeneath, PathFd,
+    make_bitflags, Access, AccessFs, CompatLevel, Compatible, PathBeneath, PathFd,
     Ruleset, RulesetAttr, RulesetCreated, RulesetCreatedAttr, RulesetStatus,
 };
 
@@ -19,8 +19,14 @@ use crate::{Exception, Sandbox};
 
 mod seccomp;
 
-/// Minimum landlock ABI version.
-const ABI: LANDLOCK_ABI = LANDLOCK_ABI::V1;
+/// Default minimum landlock ABI version.
+///
+/// Calling `LinuxSandbox::new` on a system where this is not supported will
+/// cause it to fail.
+const MIN_ABI: LANDLOCK_ABI = LANDLOCK_ABI::V1;
+
+/// Latest supported landlock ABI version.
+const MAX_ABI: LANDLOCK_ABI = LANDLOCK_ABI::V3;
 
 /// Linux sandboxing.
 pub struct LinuxSandbox {
@@ -53,7 +59,7 @@ impl LinuxSandbox {
         // NOTE: This will require these access permissions on systems that support
         // checking for them, while ignoring them on all other systems.
         (&mut ruleset).set_compatibility(CompatLevel::BestEffort);
-        (&mut ruleset).handle_access(BitFlags::<AccessFs>::all())?;
+        (&mut ruleset).handle_access(AccessFs::from_all(MAX_ABI))?;
 
         let mut landlock = ruleset.create()?;
         (&mut landlock).set_no_new_privs(true);
@@ -64,14 +70,14 @@ impl LinuxSandbox {
 
 impl Sandbox for LinuxSandbox {
     fn new() -> Result<Self> {
-        Self::new_with_version(LANDLOCK_ABI::V1)
+        Self::new_with_version(MIN_ABI)
     }
 
     fn add_exception(&mut self, exception: Exception) -> Result<&mut Self> {
         let (path, access) = match exception {
             Exception::Read(path) => (path, make_bitflags!(AccessFs::{ ReadFile | ReadDir })),
-            Exception::Write(path) => (path, AccessFs::from_write(LANDLOCK_ABI::V3)),
-            Exception::ExecuteAndRead(path) => (path, AccessFs::from_read(LANDLOCK_ABI::V3)),
+            Exception::Write(path) => (path, AccessFs::from_write(MAX_ABI)),
+            Exception::ExecuteAndRead(path) => (path, AccessFs::from_read(MAX_ABI)),
             Exception::Environment(key) => {
                 self.env_exceptions.push(key);
                 return Ok(self);
