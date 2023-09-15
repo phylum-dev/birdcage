@@ -9,8 +9,8 @@ use std::io::Error as IoError;
 use bitflags::bitflags;
 pub use landlock::ABI as LANDLOCK_ABI;
 use landlock::{
-    make_bitflags, Access, AccessFs, CompatLevel, Compatible, PathBeneath, PathFd,
-    Ruleset, RulesetAttr, RulesetCreated, RulesetCreatedAttr, RulesetStatus,
+    make_bitflags, Access, AccessFs, CompatLevel, Compatible, PathBeneath, PathFd, Ruleset,
+    RulesetAttr, RulesetCreated, RulesetCreatedAttr, RulesetStatus,
 };
 
 use crate::error::{Error, Result};
