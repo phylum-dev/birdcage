@@ -7,6 +7,8 @@ fn main() {
     let mut birdcage = Birdcage::new().unwrap();
     birdcage.add_exception(Exception::ExecuteAndRead("/usr/bin/true".into())).unwrap();
     birdcage.add_exception(Exception::ExecuteAndRead("/usr/lib".into())).unwrap();
+    birdcage.add_exception(Exception::ExecuteAndRead("/lib64".into())).unwrap();
+    birdcage.add_exception(Exception::ExecuteAndRead("/lib".into())).unwrap();
     birdcage.lock().unwrap();
 
     // Check for success when executing `true`.

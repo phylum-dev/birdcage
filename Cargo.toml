@@ -30,6 +30,11 @@ path = "tests/fs.rs"
 harness = false
 
 [[test]]
+name = "fs_without_landlock"
+path = "tests/fs_without_landlock.rs"
+harness = false
+
+[[test]]
 name = "full_env"
 path = "tests/full_env.rs"
 harness = false

@@ -3,6 +3,9 @@
 //! This module implements sandboxing on Linux based on the Landlock LSM,
 //! namespaces, and seccomp.
 
+use std::collections::HashMap;
+use std::path::PathBuf;
+
 use landlock::{
     make_bitflags, Access, AccessFs, Compatible, PathBeneath, PathFd, Ruleset, RulesetAttr,
     RulesetCreated, RulesetCreatedAttr, RulesetStatus, ABI as LANDLOCK_ABI,
@@ -20,10 +23,32 @@ const ABI: LANDLOCK_ABI = LANDLOCK_ABI::V1;
 
 /// Linux sandboxing.
 pub struct LinuxSandbox {
+    bind_mounts: HashMap<PathBuf, libc::c_ulong>,
     env_exceptions: Vec<String>,
     landlock: RulesetCreated,
     allow_networking: bool,
     full_env: bool,
+}
+
+impl LinuxSandbox {
+    /// Add or modify a bind mount.
+    ///
+    /// This will add a new bind mount with the specified permission if it does
+    /// not exist already.
+    ///
+    /// If the bind mount already exists, it will *ADD* the additional
+    /// permissions.
+    fn update_bind_mount(&mut self, path: PathBuf, write: bool, execute: bool) {
+        let flags = self.bind_mounts.entry(path).or_insert(libc::MS_RDONLY | libc::MS_NOEXEC);
+
+        if write {
+            *flags &= !libc::MS_RDONLY;
+        }
+
+        if execute {
+            *flags &= !libc::MS_NOEXEC;
+        }
+    }
 }
 
 impl Sandbox for LinuxSandbox {
@@ -35,14 +60,38 @@ impl Sandbox for LinuxSandbox {
             .create()?;
         landlock.as_mut().set_no_new_privs(true);
 
-        Ok(Self { landlock, env_exceptions: Vec::new(), allow_networking: false, full_env: false })
+        Ok(Self {
+            landlock,
+            allow_networking: false,
+            full_env: false,
+            env_exceptions: Default::default(),
+            bind_mounts: Default::default(),
+        })
     }
 
     fn add_exception(&mut self, exception: Exception) -> Result<&mut Self> {
-        let (path, access) = match exception {
-            Exception::Read(path) => (path, make_bitflags!(AccessFs::{ ReadFile | ReadDir })),
-            Exception::Write(path) => (path, AccessFs::from_write(ABI)),
-            Exception::ExecuteAndRead(path) => (path, AccessFs::from_read(ABI)),
+        let (path_fd, access) = match exception {
+            Exception::Read(path) => {
+                let path_fd = PathFd::new(&path)?;
+
+                self.update_bind_mount(path, false, false);
+
+                (path_fd, make_bitflags!(AccessFs::{ ReadFile | ReadDir }))
+            },
+            Exception::Write(path) => {
+                let path_fd = PathFd::new(&path)?;
+
+                self.update_bind_mount(path, true, false);
+
+                (path_fd, AccessFs::from_write(ABI))
+            },
+            Exception::ExecuteAndRead(path) => {
+                let path_fd = PathFd::new(&path)?;
+
+                self.update_bind_mount(path, false, true);
+
+                (path_fd, AccessFs::from_read(ABI))
+            },
             Exception::Environment(key) => {
                 self.env_exceptions.push(key);
                 return Ok(self);
@@ -57,7 +106,7 @@ impl Sandbox for LinuxSandbox {
             },
         };
 
-        let rule = PathBeneath::new(PathFd::new(path)?, access);
+        let rule = PathBeneath::new(path_fd, access);
 
         self.landlock.as_mut().add_rule(rule)?;
 
@@ -71,18 +120,28 @@ impl Sandbox for LinuxSandbox {
         }
 
         // Setup namespaces.
-        let namespace_result = namespaces::create_namespaces(!self.allow_networking);
+        let namespace_result =
+            namespaces::create_namespaces(self.allow_networking, self.bind_mounts);
 
         // Setup seccomp network filter.
         if !self.allow_networking {
             let seccomp_result = NetworkFilter::apply();
 
             // Propagate failure if neither seccomp nor namespaces could isolate networking.
-            namespace_result.or(seccomp_result)?;
+            if let (Err(_), Err(err)) = (&namespace_result, seccomp_result) {
+                return Err(err);
+            }
         }
 
         // Apply landlock rules.
-        let status = self.landlock.restrict_self()?;
+        let landlock_result = self.landlock.restrict_self();
+
+        // Ensure either landlock or namespaces are enforced.
+        let status = match (landlock_result, namespace_result) {
+            (Ok(status), _) => status,
+            (Err(_), Ok(_)) => return Ok(()),
+            (Err(err), _) => return Err(err.into()),
+        };
 
         // Ensure all restrictions were properly applied.
         if status.no_new_privs && status.ruleset == RulesetStatus::FullyEnforced {
