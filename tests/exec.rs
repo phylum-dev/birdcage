@@ -11,7 +11,7 @@ fn main() {
     if PathBuf::from("/lib64").exists() {
         birdcage.add_exception(Exception::ExecuteAndRead("/lib64".into())).unwrap();
     }
-    if PathBuf::from("/lib64").exists() {
+    if PathBuf::from("/lib").exists() {
         birdcage.add_exception(Exception::ExecuteAndRead("/lib".into())).unwrap();
     }
     birdcage.lock().unwrap();
