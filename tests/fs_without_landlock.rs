@@ -42,14 +42,7 @@ fn main() {
     // Activate our sandbox.
     let mut birdcage = Birdcage::new().unwrap();
     birdcage.add_exception(Exception::Read(public_path.path().into())).unwrap();
-    let result = birdcage.lock();
-
-    match result {
-        // Namespaces are supported, so filesystem should still be restricted.
-        Ok(_) => (),
-        // Namespaces aren't supported, so failure is desired.
-        Err(_) => return,
-    }
+    birdcage.lock().unwrap();
 
     // Access to the public file is allowed.
     let content = fs::read_to_string(public_path).unwrap();
