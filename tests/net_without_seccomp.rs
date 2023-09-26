@@ -43,17 +43,10 @@ fn main() {
     seccompiler::apply_filter(&program).unwrap();
 
     let birdcage = Birdcage::new().unwrap();
-    let result = birdcage.lock();
+    birdcage.lock().unwrap();
 
-    match result {
-        // Namespaces are supported, so networking should still be blocked.
-        Ok(_) => {
-            let result = TcpStream::connect("8.8.8.8:443");
-            assert!(result.is_err());
-        },
-        // Namespaces aren't supported, so failure is desired.
-        Err(_) => (),
-    }
+    let result = TcpStream::connect("8.8.8.8:443");
+    assert!(result.is_err());
 }
 
 #[cfg(not(target_os = "linux"))]
