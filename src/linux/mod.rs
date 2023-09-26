@@ -133,15 +133,13 @@ impl Sandbox for LinuxSandbox {
             }
         }
 
-        // Apply landlock rules.
-        let landlock_result = self.landlock.restrict_self();
+        // Use landlock only if namespaces failed.
+        if namespace_result.is_ok() {
+            return Ok(());
+        }
 
-        // Ensure either landlock or namespaces are enforced.
-        let status = match (landlock_result, namespace_result) {
-            (Ok(status), _) => status,
-            (Err(_), Ok(_)) => return Ok(()),
-            (Err(err), _) => return Err(err.into()),
-        };
+        // Apply landlock rules.
+        let status = self.landlock.restrict_self()?;
 
         // Ensure all restrictions were properly applied.
         if status.no_new_privs && status.ruleset == RulesetStatus::FullyEnforced {
