@@ -64,10 +64,9 @@ fn create_mount_namespace(bind_mounts: HashMap<PathBuf, libc::c_ulong>) -> Resul
     let new_root = PathBuf::from(NEW_ROOT);
     let put_old = new_root.join(OLD_ROOT_DIR);
 
-    // Ensure new root exists.
-    if !new_root.exists() {
-        fs::create_dir(&new_root)?;
-    }
+    // Ensure new root is available as an empty directory.
+    fs::remove_dir_all(&new_root)?;
+    fs::create_dir(&new_root)?;
 
     // Create C-friendly versions for our paths.
     let new_root_c = CString::new(new_root.as_os_str().as_bytes()).unwrap();
