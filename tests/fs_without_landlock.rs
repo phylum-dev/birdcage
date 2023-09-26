@@ -17,6 +17,7 @@ const ARCH: TargetArch = TargetArch::x86_64;
 #[cfg(target_arch = "aarch64")]
 const ARCH: TargetArch = TargetArch::aarch64;
 
+#[cfg(target_os = "linux")]
 fn main() {
     const FILE_CONTENT: &str = "expected content";
 
@@ -52,3 +53,6 @@ fn main() {
     let result = fs::read_to_string(private_path);
     assert!(result.is_err());
 }
+
+#[cfg(not(target_os = "linux"))]
+fn main() {}
