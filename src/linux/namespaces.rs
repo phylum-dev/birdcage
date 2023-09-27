@@ -29,7 +29,7 @@ const OLD_ROOT_DIR: &str = "birdcage-old-root";
 ///
 /// If successful, this will always clear the abstract namespace.
 ///
-/// Additionally it will isolate network access if `deny_networking` is `true`.
+/// Additionally it will isolate network access if `allow_networking` is `false`.
 pub fn create_namespaces(
     allow_networking: bool,
     bind_mounts: HashMap<PathBuf, libc::c_ulong>,
@@ -89,7 +89,7 @@ fn create_mount_namespace(bind_mounts: HashMap<PathBuf, libc::c_ulong>) -> Resul
     // Bind mount all allowed directories.
     let current_dir = env::current_dir().ok();
     for (mut path, flags) in bind_mounts {
-        // Ensure all paths are relative.
+        // Ensure all paths are absolute.
         if path.is_relative() {
             let current_dir = match &current_dir {
                 Some(current_dir) => current_dir,
