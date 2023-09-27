@@ -66,17 +66,17 @@ fn create_mount_namespace(bind_mounts: HashMap<PathBuf, MountFlags>) -> Result<(
     let put_old = new_root.join(OLD_ROOT_DIR);
 
     // Ensure new root is available as an empty directory.
-    if new_root.exists() {
-        fs::remove_dir_all(&new_root)?;
+    if !new_root.exists() {
+        fs::create_dir_all(&new_root)?;
     }
-    fs::create_dir(&new_root)?;
 
     // Create C-friendly versions for our paths.
     let new_root_c = CString::new(new_root.as_os_str().as_bytes()).unwrap();
     let put_old_c = CString::new(put_old.as_os_str().as_bytes()).unwrap();
 
-    // Create bind mount for new root to allow pivot.
-    bind_mount(&new_root_c, &new_root_c, MountFlags::empty())?;
+    // Create tmpfs mount for the new root, allowing pivot and ensuring directories
+    // aren't created outside the sandbox.
+    mount_tmpfs(&new_root_c)?;
 
     // Sort bind mounts by shortest length, to create parents before their children.
     let mut bind_mounts = bind_mounts.into_iter().collect::<Vec<_>>();
@@ -181,10 +181,25 @@ fn copy_tree(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> Result<()> {
     Ok(())
 }
 
+/// Mount a new tmpfs.
+fn mount_tmpfs(dst: &CStr) -> Result<()> {
+    let flags = MountFlags::empty();
+    let fstype = CString::new("tmpfs").unwrap();
+    let res = unsafe {
+        libc::mount(fstype.as_ptr(), dst.as_ptr(), fstype.as_ptr(), flags.bits(), ptr::null())
+    };
+
+    if res == 0 {
+        Ok(())
+    } else {
+        Err(IoError::last_os_error().into())
+    }
+}
+
 /// Create a new bind mount.
 fn bind_mount(src: &CStr, dst: &CStr, flags: MountFlags) -> Result<()> {
     let flags = MountFlags::BIND | MountFlags::NOSUID | MountFlags::RECURSIVE | flags;
-    let fstype = CString::new("").unwrap();
+    let fstype = CString::default();
     let res = unsafe {
         libc::mount(src.as_ptr(), dst.as_ptr(), fstype.as_ptr(), flags.bits(), ptr::null())
     };
@@ -200,7 +215,7 @@ fn bind_mount(src: &CStr, dst: &CStr, flags: MountFlags) -> Result<()> {
 fn deny_mount_propagation() -> Result<()> {
     let flags = MountFlags::PRIVATE | MountFlags::RECURSIVE;
     let root = CString::new("/").unwrap();
-    let fstype = CString::new("").unwrap();
+    let fstype = CString::default();
     let res = unsafe {
         libc::mount(root.as_ptr(), root.as_ptr(), fstype.as_ptr(), flags.bits(), ptr::null())
     };
