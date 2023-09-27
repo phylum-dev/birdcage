@@ -12,6 +12,7 @@ use landlock::{
 };
 
 use crate::error::{Error, Result};
+use crate::linux::namespaces::MountFlags;
 use crate::linux::seccomp::NetworkFilter;
 use crate::{Exception, Sandbox};
 
@@ -23,7 +24,7 @@ const ABI: LANDLOCK_ABI = LANDLOCK_ABI::V1;
 
 /// Linux sandboxing.
 pub struct LinuxSandbox {
-    bind_mounts: HashMap<PathBuf, libc::c_ulong>,
+    bind_mounts: HashMap<PathBuf, MountFlags>,
     env_exceptions: Vec<String>,
     landlock: RulesetCreated,
     allow_networking: bool,
@@ -39,14 +40,15 @@ impl LinuxSandbox {
     /// If the bind mount already exists, it will *ADD* the additional
     /// permissions.
     fn update_bind_mount(&mut self, path: PathBuf, write: bool, execute: bool) {
-        let flags = self.bind_mounts.entry(path).or_insert(libc::MS_RDONLY | libc::MS_NOEXEC);
+        let flags =
+            self.bind_mounts.entry(path).or_insert(MountFlags::READONLY | MountFlags::NOEXEC);
 
         if write {
-            *flags &= !libc::MS_RDONLY;
+            flags.remove(MountFlags::READONLY);
         }
 
         if execute {
-            *flags &= !libc::MS_NOEXEC;
+            flags.remove(MountFlags::NOEXEC);
         }
     }
 }

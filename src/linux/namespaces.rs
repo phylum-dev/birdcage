@@ -29,10 +29,11 @@ const OLD_ROOT_DIR: &str = "birdcage-old-root";
 ///
 /// If successful, this will always clear the abstract namespace.
 ///
-/// Additionally it will isolate network access if `allow_networking` is `false`.
+/// Additionally it will isolate network access if `allow_networking` is
+/// `false`.
 pub fn create_namespaces(
     allow_networking: bool,
-    bind_mounts: HashMap<PathBuf, libc::c_ulong>,
+    bind_mounts: HashMap<PathBuf, MountFlags>,
 ) -> Result<()> {
     // Get EUID/EGID outside of the namespace.
     let uid = unsafe { libc::geteuid() };
@@ -56,7 +57,7 @@ pub fn create_namespaces(
 ///
 /// This will deny access to any path which isn't part of `bind_mounts`. Allowed
 /// paths are mounted according to their bind mount flags.
-fn create_mount_namespace(bind_mounts: HashMap<PathBuf, libc::c_ulong>) -> Result<()> {
+fn create_mount_namespace(bind_mounts: HashMap<PathBuf, MountFlags>) -> Result<()> {
     // Create mount namespace to allow creation of new mounts.
     create_user_namespace(0, 0, Namespaces::MOUNT)?;
 
@@ -75,7 +76,7 @@ fn create_mount_namespace(bind_mounts: HashMap<PathBuf, libc::c_ulong>) -> Resul
     let put_old_c = CString::new(put_old.as_os_str().as_bytes()).unwrap();
 
     // Create bind mount for new root to allow pivot.
-    bind_mount(&new_root_c, &new_root_c, 0)?;
+    bind_mount(&new_root_c, &new_root_c, MountFlags::empty())?;
 
     // Sort bind mounts by shortest length, to create parents before their children.
     let mut bind_mounts = bind_mounts.into_iter().collect::<Vec<_>>();
@@ -118,7 +119,7 @@ fn create_mount_namespace(bind_mounts: HashMap<PathBuf, libc::c_ulong>) -> Resul
     let new_proc = new_root.join("proc");
     let new_proc_c = CString::new(new_proc.as_os_str().as_bytes()).unwrap();
     fs::create_dir_all(&new_proc)?;
-    bind_mount(&old_proc_c, &new_proc_c, 0).unwrap();
+    bind_mount(&old_proc_c, &new_proc_c, MountFlags::empty()).unwrap();
 
     // Pivot root to `new_root`, placing the old root in `put_old`.
     fs::create_dir_all(put_old)?;
@@ -181,11 +182,12 @@ fn copy_tree(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> Result<()> {
 }
 
 /// Create a new bind mount.
-fn bind_mount(src: &CStr, dst: &CStr, flags: libc::c_ulong) -> Result<()> {
-    let flags = libc::MS_BIND | libc::MS_NOSUID | libc::MS_REC | flags;
+fn bind_mount(src: &CStr, dst: &CStr, flags: MountFlags) -> Result<()> {
+    let flags = MountFlags::BIND | MountFlags::NOSUID | MountFlags::RECURSIVE | flags;
     let fstype = CString::new("").unwrap();
-    let res =
-        unsafe { libc::mount(src.as_ptr(), dst.as_ptr(), fstype.as_ptr(), flags, ptr::null()) };
+    let res = unsafe {
+        libc::mount(src.as_ptr(), dst.as_ptr(), fstype.as_ptr(), flags.bits(), ptr::null())
+    };
 
     if res == 0 {
         Ok(())
@@ -196,11 +198,12 @@ fn bind_mount(src: &CStr, dst: &CStr, flags: libc::c_ulong) -> Result<()> {
 
 /// Recursively update the root to deny mount propagation.
 fn deny_mount_propagation() -> Result<()> {
-    let flags = libc::MS_PRIVATE | libc::MS_REC;
+    let flags = MountFlags::PRIVATE | MountFlags::RECURSIVE;
     let root = CString::new("/").unwrap();
     let fstype = CString::new("").unwrap();
-    let res =
-        unsafe { libc::mount(root.as_ptr(), root.as_ptr(), fstype.as_ptr(), flags, ptr::null()) };
+    let res = unsafe {
+        libc::mount(root.as_ptr(), root.as_ptr(), fstype.as_ptr(), flags.bits(), ptr::null())
+    };
 
     if res == 0 {
         Ok(())
@@ -278,6 +281,29 @@ fn unshare(namespaces: Namespaces) -> Result<()> {
         Ok(())
     } else {
         Err(IoError::last_os_error().into())
+    }
+}
+
+bitflags! {
+    /// Mount syscall flags.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    pub struct MountFlags: libc::c_ulong {
+        /// Create a bind mount.
+        const BIND = libc::MS_BIND;
+        /// Do not honor set-user-ID and set-group-ID bits or file capabilities when
+        /// executing programs from this filesystem.
+        const NOSUID = libc::MS_NOSUID;
+        /// Used in conjuction with [`Self::BIND`] to create a recursive bind mount, and
+        /// in conjuction with the propagation type flags to recursively change the
+        /// propagation type of all of the mounts in a sub-tree.
+        const RECURSIVE = libc::MS_REC;
+        /// Make this mount private. Mount and unmount events do not propagate into or
+        /// out of this mount.
+        const PRIVATE = libc::MS_PRIVATE;
+        /// Mount filesystem read-only.
+        const READONLY = libc::MS_RDONLY;
+        /// Do not allow programs to be executed from this filesystem.
+        const NOEXEC = libc::MS_NOEXEC;
     }
 }
 
