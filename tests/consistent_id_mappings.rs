@@ -1,5 +1,7 @@
+#[cfg(target_os = "linux")]
 use birdcage::{Birdcage, Sandbox};
 
+#[cfg(target_os = "linux")]
 fn main() {
     let uid = unsafe { libc::getuid() };
     let gid = unsafe { libc::getgid() };
@@ -14,3 +16,6 @@ fn main() {
     assert_eq!(euid, unsafe { libc::geteuid() });
     assert_eq!(egid, unsafe { libc::getegid() });
 }
+
+#[cfg(not(target_os = "linux"))]
+fn main() {}
