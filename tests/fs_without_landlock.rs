@@ -21,7 +21,7 @@ const ARCH: TargetArch = TargetArch::aarch64;
 fn main() {
     const FILE_CONTENT: &str = "expected content";
 
-    // Create seccomp filter blocking `landlock_create_ruleset` syscall.
+    // Create seccomp filter blocking `landlock_restrict_self` syscall.
     let mut rules = BTreeMap::new();
     rules.insert(libc::SYS_landlock_restrict_self, Vec::new());
     let filter = SeccompFilter::new(
