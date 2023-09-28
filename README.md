@@ -63,8 +63,7 @@ use the example.
 
 ## Supported Platforms
 
- - Linux via [namespaces] and [seccomp]
+ - Linux via [namespaces]
  - macOS via `sandbox_init()` (aka Seatbelt)
 
 [namespaces]: https://man7.org/linux/man-pages/man7/namespaces.7.html
-[seccomp]: https://man7.org/linux/man-pages/man2/seccomp.2.html
