@@ -7,7 +7,7 @@ use std::fs::{self, File};
 use std::io::Error as IoError;
 use std::os::unix::ffi::OsStrExt;
 use std::path::{Component, Path, PathBuf};
-use std::{env, ptr};
+use std::{env, io, ptr};
 
 use bitflags::bitflags;
 
@@ -88,17 +88,13 @@ fn create_mount_namespace(bind_mounts: HashMap<PathBuf, MountFlags>) -> Result<(
     });
 
     // Bind mount all allowed directories.
-    let current_dir = env::current_dir().ok();
-    for (mut path, flags) in bind_mounts {
-        // Ensure all paths are absolute.
-        if path.is_relative() {
-            let current_dir = match &current_dir {
-                Some(current_dir) => current_dir,
-                // Ignore relative paths if we cannot access the working directory.
-                None => continue,
-            };
-            path = current_dir.join(path);
-        }
+    for (path, flags) in bind_mounts {
+        // Ensure all paths are absolute, without following symlinks.
+        let path = match absolute(&path) {
+            Ok(path) => normalize_path(&path),
+            // Ignore relative paths if we cannot access the working directory.
+            Err(_) => continue,
+        };
 
         let src_c = CString::new(path.as_os_str().as_bytes()).unwrap();
 
@@ -373,4 +369,71 @@ bitflags! {
         /// corresponding semaphores
         const SYSVSEM = libc::CLONE_SYSVSEM;
     }
+}
+
+// Copied from Rust's STD:
+// https://github.com/rust-lang/rust/blob/42faef503f3e765120ca0ef06991337668eafc32/library/std/src/sys/unix/path.rs#L23C1-L63C2
+//
+// Licensed under MIT:
+// https://github.com/rust-lang/rust/blob/master/LICENSE-MIT
+//
+/// Make a POSIX path absolute without changing its semantics.
+fn absolute(path: &Path) -> io::Result<PathBuf> {
+    // This is mostly a wrapper around collecting `Path::components`, with
+    // exceptions made where this conflicts with the POSIX specification.
+    // See 4.13 Pathname Resolution, IEEE Std 1003.1-2017
+    // https://pubs.opengroup.org/onlinepubs/9699919799/basedefs/V1_chap04.html#tag_04_13
+
+    // Get the components, skipping the redundant leading "." component if it
+    // exists.
+    let mut components = path.strip_prefix(".").unwrap_or(path).components();
+    let path_os = path.as_os_str().as_encoded_bytes();
+
+    let mut normalized = if path.is_absolute() {
+        // "If a pathname begins with two successive <slash> characters, the
+        // first component following the leading <slash> characters may be
+        // interpreted in an implementation-defined manner, although more than
+        // two leading <slash> characters shall be treated as a single <slash>
+        // character."
+        if path_os.starts_with(b"//") && !path_os.starts_with(b"///") {
+            components.next();
+            PathBuf::from("//")
+        } else {
+            PathBuf::new()
+        }
+    } else {
+        env::current_dir()?
+    };
+    normalized.extend(components);
+
+    // "Interfaces using pathname resolution may specify additional constraints
+    // when a pathname that does not name an existing directory contains at
+    // least one non- <slash> character and contains one or more trailing
+    // <slash> characters".
+    // A trailing <slash> is also meaningful if "a symbolic link is
+    // encountered during pathname resolution".
+    if path_os.ends_with(b"/") {
+        normalized.push("");
+    }
+
+    Ok(normalized)
+}
+
+/// Normalize path components, stripping out `.` and `..`.
+fn normalize_path(path: &Path) -> PathBuf {
+    let mut normalized = PathBuf::new();
+
+    for component in path.components() {
+        match component {
+            Component::Prefix(_) => unreachable!("impl does not consider windows"),
+            Component::RootDir => normalized.push("/"),
+            Component::CurDir => continue,
+            Component::ParentDir => {
+                normalized.pop();
+            },
+            Component::Normal(segment) => normalized.push(segment),
+        }
+    }
+
+    normalized
 }
