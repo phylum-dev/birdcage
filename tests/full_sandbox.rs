@@ -32,7 +32,7 @@ fn main() {
     assert_eq!(env::var("TEST"), Ok("value".into()));
 
     // Activate our sandbox.
-    Birdcage::new().unwrap().lock().unwrap();
+    Birdcage::new().lock().unwrap();
 
     // Ensure sandboxed write is blocked.
     let result = fs::write(&path, b"x");

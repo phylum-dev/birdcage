@@ -3,7 +3,7 @@ use std::fs;
 use birdcage::{Birdcage, Exception, Sandbox};
 
 fn main() {
-    let mut birdcage = Birdcage::new().unwrap();
+    let mut birdcage = Birdcage::new();
     birdcage.add_exception(Exception::Read("./".into())).unwrap();
     birdcage.lock().unwrap();
 

@@ -8,7 +8,7 @@ fn main() {
     env::set_var("PRIVATE", "BAD");
 
     // Activate our sandbox.
-    let mut birdcage = Birdcage::new().unwrap();
+    let mut birdcage = Birdcage::new();
     birdcage.add_exception(Exception::Environment("PUBLIC".into())).unwrap();
     birdcage.lock().unwrap();
 

@@ -63,8 +63,8 @@ use the example.
 
 ## Supported Platforms
 
- - Linux (5.13+) via [Landlock] and [seccomp]
+ - Linux via [namespaces] and [seccomp]
  - macOS via `sandbox_init()` (aka Seatbelt)
 
-[landlock]: https://www.kernel.org/doc/html/latest/userspace-api/landlock.html
+[namespaces]: https://man7.org/linux/man-pages/man7/namespaces.7.html
 [seccomp]: https://man7.org/linux/man-pages/man2/seccomp.2.html

@@ -8,7 +8,7 @@ fn main() {
     let euid = unsafe { libc::geteuid() };
     let egid = unsafe { libc::getegid() };
 
-    let birdcage = Birdcage::new().unwrap();
+    let birdcage = Birdcage::new();
     birdcage.lock().unwrap();
 
     assert_eq!(uid, unsafe { libc::getuid() });

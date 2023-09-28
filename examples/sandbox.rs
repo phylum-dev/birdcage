@@ -42,7 +42,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let cli = Cli::parse();
 
     // Setup sandbox and its exceptions.
-    let mut birdcage = Birdcage::new()?;
+    let mut birdcage = Birdcage::new();
 
     for path in cli.allow_read {
         birdcage.add_exception(Exception::Read(path))?;

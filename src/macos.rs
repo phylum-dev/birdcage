@@ -35,8 +35,8 @@ pub struct MacSandbox {
 }
 
 impl Sandbox for MacSandbox {
-    fn new() -> Result<Self> {
-        Ok(Self { profile: DEFAULT_RULE.to_vec(), env_exceptions: Vec::new(), full_env: false })
+    fn new() -> Self {
+        Self { profile: DEFAULT_RULE.to_vec(), env_exceptions: Vec::new(), full_env: false }
     }
 
     fn add_exception(&mut self, exception: Exception) -> Result<&mut Self> {
