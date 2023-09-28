@@ -6,11 +6,9 @@ use std::path::PathBuf;
 
 use crate::error::Result;
 use crate::linux::namespaces::MountFlags;
-use crate::linux::seccomp::NetworkFilter;
 use crate::{Exception, Sandbox};
 
 mod namespaces;
-mod seccomp;
 
 /// Linux sandboxing.
 #[derive(Default)]
@@ -69,11 +67,6 @@ impl Sandbox for LinuxSandbox {
 
         // Setup namespaces.
         namespaces::create_namespaces(self.allow_networking, self.bind_mounts)?;
-
-        // Setup seccomp network filter.
-        if !self.allow_networking {
-            let _ = NetworkFilter::apply();
-        }
 
         // Block suid/sgid.
         //
