@@ -70,6 +70,12 @@ pub trait Sandbox: Sized {
     /// # Errors
     ///
     /// Sandboxing will fail if the calling process is not single-threaded.
+    ///
+    /// Since sandboxing layers are applied in multiple steps, it is possible
+    /// that after a failure some restrictions are still applied. While this
+    /// never allows the process to do things it wasn't capable of doing
+    /// before, it is still recommended to abort the sandboxing process if
+    /// you want to continue operations without a sandbox in place.
     fn lock(self) -> Result<()>;
 }
 

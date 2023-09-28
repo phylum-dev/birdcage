@@ -33,15 +33,14 @@ fn main() {
     let birdcage = Birdcage::new().unwrap();
     let result = birdcage.lock();
 
-    match result {
-        // Seccomp is supported, so networking should still be blocked.
-        Ok(_) => {
-            let result = TcpStream::connect("8.8.8.8:443");
-            assert!(result.is_err());
-        },
-        // Seccomp isn't supported, so failure is desired.
-        Err(_) => (),
+    // Seccomp isn't supported, so failure is desired.
+    if result.is_err() {
+        return;
     }
+
+    // Seccomp is supported, so networking should still be blocked.
+    let result = TcpStream::connect("8.8.8.8:443");
+    assert!(result.is_err());
 }
 
 #[cfg(not(target_os = "linux"))]

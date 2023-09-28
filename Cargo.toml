@@ -30,6 +30,11 @@ path = "tests/fs.rs"
 harness = false
 
 [[test]]
+name = "fs_without_landlock"
+path = "tests/fs_without_landlock.rs"
+harness = false
+
+[[test]]
 name = "full_env"
 path = "tests/full_env.rs"
 harness = false
@@ -52,6 +57,11 @@ harness = false
 [[test]]
 name = "net_without_namespaces"
 path = "tests/net_without_namespaces.rs"
+harness = false
+
+[[test]]
+name = "consistent_id_mappings"
+path = "tests/consistent_id_mappings.rs"
 harness = false
 
 [target.'cfg(target_os = "linux")'.dependencies]

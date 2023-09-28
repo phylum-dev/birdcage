@@ -24,7 +24,7 @@ fn main() {
     drop(stream);
 
     // Ensure non-sandboxed execution works.
-    let cmd = Command::new("/bin/echo").arg("hello world").status();
+    let cmd = Command::new("/usr/bin/true").status();
     assert!(cmd.is_ok());
 
     // Ensure non-sandboxed env access works.
@@ -48,7 +48,7 @@ fn main() {
     drop(stream);
 
     // Ensure sandboxed execution is blocked.
-    let cmd = Command::new("/bin/echo").arg("hello world").status();
+    let cmd = Command::new("/usr/bin/true").status();
     assert!(cmd.is_err());
 
     // Ensure sandboxed env access is blocked.
