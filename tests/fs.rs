@@ -13,7 +13,7 @@ fn main() {
     fs::write(&public_path, FILE_CONTENT.as_bytes()).unwrap();
 
     // Activate our sandbox.
-    let mut birdcage = Birdcage::new().unwrap();
+    let mut birdcage = Birdcage::new();
     birdcage.add_exception(Exception::Read(public_path.path().into())).unwrap();
     birdcage.lock().unwrap();
 

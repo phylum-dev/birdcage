@@ -18,7 +18,7 @@
 //! fs::read_to_string(file.path()).unwrap();
 //!
 //! // Initialize the sandbox; by default everything is prohibited.
-//! Birdcage::new().unwrap().lock().unwrap();
+//! Birdcage::new().lock().unwrap();
 //!
 //! // Reads with sandbox should fail.
 //! let result = fs::read_to_string(file.path());
@@ -56,7 +56,7 @@ pub type Birdcage = MacSandbox;
 
 pub trait Sandbox: Sized {
     /// Setup the sandboxing environment.
-    fn new() -> Result<Self>;
+    fn new() -> Self;
 
     /// Add a new exception to the sandbox.
     ///

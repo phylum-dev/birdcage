@@ -42,7 +42,7 @@ fn main() {
     let program: BpfProgram = filter.try_into().unwrap();
     seccompiler::apply_filter(&program).unwrap();
 
-    let birdcage = Birdcage::new().unwrap();
+    let birdcage = Birdcage::new();
     birdcage.lock().unwrap();
 
     let result = TcpStream::connect("8.8.8.8:443");

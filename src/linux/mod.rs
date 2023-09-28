@@ -1,17 +1,10 @@
 //! Linux sandboxing.
-//!
-//! This module implements sandboxing on Linux based on the Landlock LSM,
-//! namespaces, and seccomp.
 
 use std::collections::HashMap;
+use std::io::Error as IoError;
 use std::path::PathBuf;
 
-use landlock::{
-    make_bitflags, Access, AccessFs, Compatible, PathBeneath, PathFd, Ruleset, RulesetAttr,
-    RulesetCreated, RulesetCreatedAttr, RulesetStatus, ABI as LANDLOCK_ABI,
-};
-
-use crate::error::{Error, Result};
+use crate::error::Result;
 use crate::linux::namespaces::MountFlags;
 use crate::linux::seccomp::NetworkFilter;
 use crate::{Exception, Sandbox};
@@ -19,14 +12,11 @@ use crate::{Exception, Sandbox};
 mod namespaces;
 mod seccomp;
 
-/// Minimum landlock ABI version.
-const ABI: LANDLOCK_ABI = LANDLOCK_ABI::V1;
-
 /// Linux sandboxing.
+#[derive(Default)]
 pub struct LinuxSandbox {
     bind_mounts: HashMap<PathBuf, MountFlags>,
     env_exceptions: Vec<String>,
-    landlock: RulesetCreated,
     allow_networking: bool,
     full_env: bool,
 }
@@ -54,63 +44,19 @@ impl LinuxSandbox {
 }
 
 impl Sandbox for LinuxSandbox {
-    fn new() -> Result<Self> {
-        // Setup landlock filtering.
-        let mut landlock = Ruleset::new()
-            .set_best_effort(false)
-            .handle_access(AccessFs::from_all(ABI))?
-            .create()?;
-        landlock.as_mut().set_no_new_privs(true);
-
-        Ok(Self {
-            landlock,
-            allow_networking: false,
-            full_env: false,
-            env_exceptions: Default::default(),
-            bind_mounts: Default::default(),
-        })
+    fn new() -> Self {
+        Self::default()
     }
 
     fn add_exception(&mut self, exception: Exception) -> Result<&mut Self> {
-        let (path_fd, access) = match exception {
-            Exception::Read(path) => {
-                let path_fd = PathFd::new(&path)?;
-
-                self.update_bind_mount(path, false, false);
-
-                (path_fd, make_bitflags!(AccessFs::{ ReadFile | ReadDir }))
-            },
-            Exception::Write(path) => {
-                let path_fd = PathFd::new(&path)?;
-
-                self.update_bind_mount(path, true, false);
-
-                (path_fd, AccessFs::from_write(ABI))
-            },
-            Exception::ExecuteAndRead(path) => {
-                let path_fd = PathFd::new(&path)?;
-
-                self.update_bind_mount(path, false, true);
-
-                (path_fd, AccessFs::from_read(ABI))
-            },
-            Exception::Environment(key) => {
-                self.env_exceptions.push(key);
-                return Ok(self);
-            },
-            Exception::FullEnvironment => {
-                self.full_env = true;
-                return Ok(self);
-            },
-            Exception::Networking => {
-                self.allow_networking = true;
-                return Ok(self);
-            },
-        };
-
-        let rule = PathBeneath::new(path_fd, access);
-
-        self.landlock.as_mut().add_rule(rule)?;
+        match exception {
+            Exception::Read(path) => self.update_bind_mount(path, false, false),
+            Exception::Write(path) => self.update_bind_mount(path, true, false),
+            Exception::ExecuteAndRead(path) => self.update_bind_mount(path, false, true),
+            Exception::Environment(key) => self.env_exceptions.push(key),
+            Exception::FullEnvironment => self.full_env = true,
+            Exception::Networking => self.allow_networking = true,
+        }
 
         Ok(self)
     }
@@ -122,32 +68,29 @@ impl Sandbox for LinuxSandbox {
         }
 
         // Setup namespaces.
-        let namespace_result =
-            namespaces::create_namespaces(self.allow_networking, self.bind_mounts);
+        namespaces::create_namespaces(self.allow_networking, self.bind_mounts)?;
 
         // Setup seccomp network filter.
         if !self.allow_networking {
-            let seccomp_result = NetworkFilter::apply();
-
-            // Propagate failure if neither seccomp nor namespaces could isolate networking.
-            if let (Err(_), Err(err)) = (&namespace_result, seccomp_result) {
-                return Err(err);
-            }
+            let _ = NetworkFilter::apply();
         }
 
-        // Use landlock only if namespaces failed.
-        if namespace_result.is_ok() {
-            return Ok(());
-        }
+        // Block suid/sgid.
+        //
+        // This is also blocked by our bind mount's MS_NOSUID flag, so we're just
+        // doubling-down here.
+        no_new_privs()?;
 
-        // Apply landlock rules.
-        let status = self.landlock.restrict_self()?;
+        Ok(())
+    }
+}
 
-        // Ensure all restrictions were properly applied.
-        if status.no_new_privs && status.ruleset == RulesetStatus::FullyEnforced {
-            Ok(())
-        } else {
-            Err(Error::ActivationFailed("sandbox could not be fully enforced".into()))
-        }
+/// Prevent suid/sgid.
+fn no_new_privs() -> Result<()> {
+    let result = unsafe { libc::prctl(libc::PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) };
+
+    match result {
+        0 => Ok(()),
+        _ => Err(IoError::last_os_error().into()),
     }
 }

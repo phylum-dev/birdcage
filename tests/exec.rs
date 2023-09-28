@@ -5,7 +5,7 @@ use std::process::Command;
 use birdcage::{Birdcage, Exception, Sandbox};
 
 fn main() {
-    let mut birdcage = Birdcage::new().unwrap();
+    let mut birdcage = Birdcage::new();
     birdcage.add_exception(Exception::ExecuteAndRead("/usr/bin/true".into())).unwrap();
     birdcage.add_exception(Exception::ExecuteAndRead("/usr/lib".into())).unwrap();
     if PathBuf::from("/lib64").exists() {

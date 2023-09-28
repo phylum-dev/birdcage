@@ -252,10 +252,9 @@ fn pivot_root(new_root: &CStr, put_old: &CStr) -> Result<()> {
 fn umount(target: &CStr) -> Result<()> {
     let result = unsafe { libc::umount2(target.as_ptr(), libc::MNT_DETACH) };
 
-    if result == 0 {
-        Ok(())
-    } else {
-        Err(IoError::last_os_error().into())
+    match result {
+        0 => Ok(()),
+        _ => Err(IoError::last_os_error().into()),
     }
 }
 
@@ -288,10 +287,9 @@ fn create_user_namespace(
 /// Enter a namespace.
 fn unshare(namespaces: Namespaces) -> Result<()> {
     let result = unsafe { libc::unshare(namespaces.bits()) };
-    if result == 0 {
-        Ok(())
-    } else {
-        Err(IoError::last_os_error().into())
+    match result {
+        0 => Ok(()),
+        _ => Err(IoError::last_os_error().into()),
     }
 }
 

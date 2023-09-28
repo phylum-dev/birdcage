@@ -30,7 +30,7 @@ fn main() {
     let program: BpfProgram = filter.try_into().unwrap();
     seccompiler::apply_filter(&program).unwrap();
 
-    let birdcage = Birdcage::new().unwrap();
+    let birdcage = Birdcage::new();
     let result = birdcage.lock();
 
     // Seccomp isn't supported, so failure is desired.
