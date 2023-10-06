@@ -49,7 +49,7 @@ impl SyscallFilter {
         // Add exception for the `clone` syscall.
         let allow_clone = SeccompCondition::new(
             0,
-            SeccompCmpArgLen::Dword,
+            SeccompCmpArgLen::Qword,
             SeccompCmpOp::MaskedEq(CLONE_NAMESPACE_FILTER as u64),
             0,
         )?;
