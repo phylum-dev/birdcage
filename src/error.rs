@@ -7,12 +7,19 @@ use std::fmt::{self, Display, Formatter};
 use std::io::Error as IoError;
 use std::result::Result as StdResult;
 
+#[cfg(target_os = "linux")]
+use seccompiler::{BackendError, Error as SeccompError};
+
 /// Birdcage result type.
 pub type Result<T> = StdResult<T, Error>;
 
 /// Sandboxing error.
 #[derive(Debug)]
 pub enum Error {
+    /// Seccomp errors.
+    #[cfg(target_os = "linux")]
+    Seccomp(SeccompError),
+
     /// Invalid sandbox exception path.
     #[cfg(target_os = "macos")]
     InvalidPath(InvalidPathError),
@@ -29,6 +36,8 @@ impl StdError for Error {}
 impl Display for Error {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
+            #[cfg(target_os = "linux")]
+            Self::Seccomp(error) => write!(f, "seccomp error: {error}"),
             #[cfg(target_os = "macos")]
             Self::InvalidPath(error) => write!(f, "invalid path: {error:?}"),
             Self::Io(error) => write!(f, "input/output error: {error}"),
@@ -36,6 +45,20 @@ impl Display for Error {
                 write!(f, "failed to initialize a sufficient sandbox: {error}")
             },
         }
+    }
+}
+
+#[cfg(target_os = "linux")]
+impl From<SeccompError> for Error {
+    fn from(error: SeccompError) -> Self {
+        Self::Seccomp(error)
+    }
+}
+
+#[cfg(target_os = "linux")]
+impl From<BackendError> for Error {
+    fn from(error: BackendError) -> Self {
+        Self::Seccomp(SeccompError::Backend(error))
     }
 }
 
