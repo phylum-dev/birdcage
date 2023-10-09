@@ -26,7 +26,6 @@ const ARCH: TargetArch = TargetArch::aarch64;
 ///  - CLONE_NEWUSER   = 0x10000000
 ///  - CLONE_NEWPID    = 0x20000000
 ///  - CLONE_NEWNET    = 0x40000000
-///  - CLONE_IO        = 0x80000000
 const CLONE_NAMESPACE_FILTER: u32 = 0b01111110000000100000000000000000;
 
 /// Seccomp system call filter.

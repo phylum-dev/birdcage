@@ -70,7 +70,7 @@ impl Sandbox for LinuxSandbox {
         // Setup namespaces.
         namespaces::create_namespaces(self.allow_networking, self.bind_mounts)?;
 
-        // Setup seccomp filters.
+        // Setup system call filters.
         SyscallFilter::apply()?;
 
         // Block suid/sgid.
