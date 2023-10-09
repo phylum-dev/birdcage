@@ -6,7 +6,20 @@ The sections should follow the order `Packaging`, `Added`, `Changed`, `Fixed` an
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## [Unreleased]
+## [0.4.0] - 2023-10-09
+
+### Added
+
+- (Linux) Seccomp system call filter
+
+### Changed
+
+- (Linux) Minimum Kernel version reduced to 3.8
+
+### Fixed
+
+- (Linux) Abstract namespace isolation
+- (Linux) Socket and pipe isolation
 
 ## [0.3.1] - 2023-08-31
 
