@@ -49,7 +49,13 @@ name = "consistent_id_mappings"
 path = "tests/consistent_id_mappings.rs"
 harness = false
 
+[[test]]
+name = "seccomp"
+path = "tests/seccomp.rs"
+harness = false
+
 [target.'cfg(target_os = "linux")'.dependencies]
+seccompiler = "0.3.0"
 libc = "0.2.132"
 
 [dev-dependencies]
