@@ -21,6 +21,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - (Linux) Abstract namespace isolation
 - (Linux) Socket and pipe isolation
 
+### Contributors
+
+We'd like to thank [@bjorn3](https://github.com/bjorn3) for disclosing an issue
+with socket isolation.
+
 ## [0.3.1] - 2023-08-31
 
 ### Fixed
