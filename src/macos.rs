@@ -113,7 +113,7 @@ impl Sandbox for MacSandbox {
 fn escape_path(path: PathBuf) -> StdResult<String, Error> {
     // Canonicalize the incoming path to support relative paths.
     // The `subpath` action only allows absolute paths.
-    let canonical_path = fs::canonicalize(&path).map_err(|_| Error::InvalidPath(path))?;
+    let canonical_path = fs::canonicalize(&path).map_err(|_| Error::InvalidPath(path.clone()))?;
 
     let mut path_str =
         canonical_path.into_os_string().into_string().map_err(|_| Error::InvalidPath(path))?;

@@ -1,8 +1,6 @@
 //! Sandboxing errors.
 
 use std::error::Error as StdError;
-#[cfg(target_os = "macos")]
-use std::ffi::OsString;
 use std::fmt::{self, Display, Formatter};
 use std::io::Error as IoError;
 use std::path::PathBuf;
