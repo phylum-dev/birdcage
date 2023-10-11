@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::io::Error as IoError;
 use std::path::PathBuf;
 
-use crate::error::Result;
+use crate::error::{Error, Result};
 use crate::linux::namespaces::MountFlags;
 use crate::linux::seccomp::SyscallFilter;
 use crate::{Exception, Sandbox};
@@ -49,6 +49,15 @@ impl Sandbox for LinuxSandbox {
     }
 
     fn add_exception(&mut self, exception: Exception) -> Result<&mut Self> {
+        // Report error if exception is added for an invalid path.
+        if let Exception::Read(path) | Exception::Write(path) | Exception::ExecuteAndRead(path) =
+            &exception
+        {
+            if !path.exists() {
+                return Err(Error::InvalidPath(path.into()));
+            }
+        }
+
         match exception {
             Exception::Read(path) => self.update_bind_mount(path, false, false),
             Exception::Write(path) => self.update_bind_mount(path, true, false),
