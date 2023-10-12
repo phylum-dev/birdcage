@@ -12,6 +12,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - (Linux) Report invalid paths when adding exceptions
 
+### Fixed
+
+- (Linux) Root filesystem exceptions failing sandbox creation
+
 ## [0.4.0] - 2023-10-09
 
 ### Added

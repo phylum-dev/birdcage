@@ -16,15 +16,6 @@ use crate::error::Result;
 /// Path for mount namespace's new root.
 const NEW_ROOT: &str = "/tmp/birdcage-root";
 
-/// Old root mount point inside the new root.
-///
-/// This should not conflict with any files or directories which might be
-/// present in a root directory, since it will be placed in the new root.
-///
-/// However this is only present within the new bind mount, so it will not be
-/// persisted and cannot conflict with previous mount namespace sandboxes.
-const OLD_ROOT_DIR: &str = "birdcage-old-root";
-
 /// Isolate process using Linux namespaces.
 ///
 /// If successful, this will always clear the abstract namespace.
@@ -63,7 +54,6 @@ fn create_mount_namespace(bind_mounts: HashMap<PathBuf, MountFlags>) -> Result<(
 
     // Get target paths for new and old root.
     let new_root = PathBuf::from(NEW_ROOT);
-    let put_old = new_root.join(OLD_ROOT_DIR);
 
     // Ensure new root is available as an empty directory.
     if !new_root.exists() {
@@ -72,7 +62,6 @@ fn create_mount_namespace(bind_mounts: HashMap<PathBuf, MountFlags>) -> Result<(
 
     // Create C-friendly versions for our paths.
     let new_root_c = CString::new(new_root.as_os_str().as_bytes()).unwrap();
-    let put_old_c = CString::new(put_old.as_os_str().as_bytes()).unwrap();
 
     // Create tmpfs mount for the new root, allowing pivot and ensuring directories
     // aren't created outside the sandbox.
@@ -117,13 +106,11 @@ fn create_mount_namespace(bind_mounts: HashMap<PathBuf, MountFlags>) -> Result<(
     fs::create_dir_all(&new_proc)?;
     bind_mount(&old_proc_c, &new_proc_c, MountFlags::empty()).unwrap();
 
-    // Pivot root to `new_root`, placing the old root in `put_old`.
-    fs::create_dir_all(put_old)?;
-    pivot_root(&new_root_c, &put_old_c)?;
+    // Pivot root to `new_root`, placing the old root at the same location.
+    pivot_root(&new_root_c, &new_root_c)?;
 
-    // Remove the old root mount.
-    let new_old = PathBuf::from("/").join(OLD_ROOT_DIR);
-    let new_old_c = CString::new(new_old.as_os_str().as_bytes()).unwrap();
+    // Remove old root mounted at /, leaving only the new root at the same location.
+    let new_old_c = CString::new("/").unwrap();
     umount(&new_old_c)?;
 
     // Prevent child mount namespaces from accessing this namespace's mounts.
