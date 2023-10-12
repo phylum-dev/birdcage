@@ -8,7 +8,7 @@ use std::path::PathBuf;
 use std::result::Result as StdResult;
 use std::{fs, ptr};
 
-use crate::error::{Error, InvalidPathError, Result};
+use crate::error::{Error, Result};
 use crate::{Exception, Sandbox};
 
 /// Deny-all fallback rule.
@@ -110,19 +110,20 @@ impl Sandbox for MacSandbox {
 }
 
 /// Escape a path: /tt/in\a"x -> "/tt/in\\a\"x"
-fn escape_path(path: PathBuf) -> StdResult<String, InvalidPathError> {
+fn escape_path(path: PathBuf) -> StdResult<String, Error> {
     // Canonicalize the incoming path to support relative paths.
     // The `subpath` action only allows absolute paths.
-    let path = fs::canonicalize(path)?;
+    let canonical_path = fs::canonicalize(&path).map_err(|_| Error::InvalidPath(path.clone()))?;
 
-    let mut path = path.into_os_string().into_string()?;
+    let mut path_str =
+        canonical_path.into_os_string().into_string().map_err(|_| Error::InvalidPath(path))?;
     // Paths in `subpath` expressions must not end with /.
-    while path.ends_with('/') && path != "/" {
-        String::pop(&mut path);
+    while path_str.ends_with('/') && path_str != "/" {
+        String::pop(&mut path_str);
     }
-    path = path.replace('"', r#"\""#);
-    path = path.replace('\\', r#"\\"#);
-    Ok(format!("\"{path}\""))
+    path_str = path_str.replace('"', r#"\""#);
+    path_str = path_str.replace('\\', r#"\\"#);
+    Ok(format!("\"{path_str}\""))
 }
 
 extern "C" {
