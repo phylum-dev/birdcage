@@ -35,6 +35,11 @@ path = "tests/fs_readonly.rs"
 harness = false
 
 [[test]]
+name = "fs_write_also_read"
+path = "tests/fs_write_also_read.rs"
+harness = false
+
+[[test]]
 name = "full_env"
 path = "tests/full_env.rs"
 harness = false

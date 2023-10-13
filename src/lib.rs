@@ -89,7 +89,9 @@ pub enum Exception {
     Read(PathBuf),
 
     /// Allow write access to the path and anything beneath it.
-    Write(PathBuf),
+    ///
+    /// On Linux this will **always** also grant read access to the path.
+    WriteAndRead(PathBuf),
 
     /// Allow executing and reading the path and anything beneath it.
     ///
