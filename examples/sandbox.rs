@@ -49,7 +49,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     }
 
     for path in cli.allow_write {
-        birdcage.add_exception(Exception::Write(path))?;
+        birdcage.add_exception(Exception::WriteAndRead(path))?;
     }
 
     for path in cli.allow_execute {

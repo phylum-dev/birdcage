@@ -50,8 +50,9 @@ impl Sandbox for LinuxSandbox {
 
     fn add_exception(&mut self, exception: Exception) -> Result<&mut Self> {
         // Report error if exception is added for an invalid path.
-        if let Exception::Read(path) | Exception::Write(path) | Exception::ExecuteAndRead(path) =
-            &exception
+        if let Exception::Read(path)
+        | Exception::WriteAndRead(path)
+        | Exception::ExecuteAndRead(path) = &exception
         {
             if !path.exists() {
                 return Err(Error::InvalidPath(path.into()));
@@ -60,7 +61,7 @@ impl Sandbox for LinuxSandbox {
 
         match exception {
             Exception::Read(path) => self.update_bind_mount(path, false, false),
-            Exception::Write(path) => self.update_bind_mount(path, true, false),
+            Exception::WriteAndRead(path) => self.update_bind_mount(path, true, false),
             Exception::ExecuteAndRead(path) => self.update_bind_mount(path, false, true),
             Exception::Environment(key) => self.env_exceptions.push(key),
             Exception::FullEnvironment => self.full_env = true,

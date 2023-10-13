@@ -51,7 +51,9 @@ impl Sandbox for MacSandbox {
                 buffer.write_all(escaped_path.as_bytes())?;
                 buffer.write_all(b"))\n")?;
             },
-            Exception::Write(path) => {
+            Exception::WriteAndRead(path) => {
+                self.add_exception(Exception::Read(path.clone()))?;
+
                 buffer.write_all(b"(allow file-write* (subpath ")?;
                 let escaped_path = escape_path(path)?;
                 buffer.write_all(escaped_path.as_bytes())?;

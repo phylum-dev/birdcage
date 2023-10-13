@@ -88,8 +88,8 @@ pub enum Exception {
     /// Allow read access to the path and anything beneath it.
     Read(PathBuf),
 
-    /// Allow write access to the path and anything beneath it.
-    Write(PathBuf),
+    /// Allow writing and reading the path and anything beneath it.
+    WriteAndRead(PathBuf),
 
     /// Allow executing and reading the path and anything beneath it.
     ///
