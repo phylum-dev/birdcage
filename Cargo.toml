@@ -40,6 +40,21 @@ path = "tests/fs_write_also_read.rs"
 harness = false
 
 [[test]]
+name = "fs_symlink"
+path = "tests/fs_symlink.rs"
+harness = false
+
+[[test]]
+name = "fs_symlink_dir"
+path = "tests/fs_symlink_dir.rs"
+harness = false
+
+[[test]]
+name = "fs_null"
+path = "tests/fs_null.rs"
+harness = false
+
+[[test]]
 name = "full_env"
 path = "tests/full_env.rs"
 harness = false
