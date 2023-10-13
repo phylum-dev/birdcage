@@ -5,7 +5,7 @@ use std::io::Error as IoError;
 use std::path::PathBuf;
 
 use crate::error::{Error, Result};
-use crate::linux::namespaces::MountFlags;
+use crate::linux::namespaces::MountAttrFlags;
 use crate::linux::seccomp::SyscallFilter;
 use crate::{Exception, Sandbox};
 
@@ -15,7 +15,7 @@ mod seccomp;
 /// Linux sandboxing.
 #[derive(Default)]
 pub struct LinuxSandbox {
-    bind_mounts: HashMap<PathBuf, MountFlags>,
+    bind_mounts: HashMap<PathBuf, MountAttrFlags>,
     env_exceptions: Vec<String>,
     allow_networking: bool,
     full_env: bool,
@@ -31,14 +31,14 @@ impl LinuxSandbox {
     /// permissions.
     fn update_bind_mount(&mut self, path: PathBuf, write: bool, execute: bool) {
         let flags =
-            self.bind_mounts.entry(path).or_insert(MountFlags::READONLY | MountFlags::NOEXEC);
+            self.bind_mounts.entry(path).or_insert(MountAttrFlags::RDONLY | MountAttrFlags::NOEXEC);
 
         if write {
-            flags.remove(MountFlags::READONLY);
+            flags.remove(MountAttrFlags::RDONLY);
         }
 
         if execute {
-            flags.remove(MountFlags::NOEXEC);
+            flags.remove(MountAttrFlags::NOEXEC);
         }
     }
 }

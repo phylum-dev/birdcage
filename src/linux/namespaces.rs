@@ -7,7 +7,7 @@ use std::fs::{self, File};
 use std::io::Error as IoError;
 use std::os::unix::ffi::OsStrExt;
 use std::path::{Component, Path, PathBuf};
-use std::{env, io, ptr};
+use std::{env, io, mem, ptr};
 
 use bitflags::bitflags;
 
@@ -24,7 +24,7 @@ const NEW_ROOT: &str = "/tmp/birdcage-root";
 /// `false`.
 pub fn create_namespaces(
     allow_networking: bool,
-    bind_mounts: HashMap<PathBuf, MountFlags>,
+    bind_mounts: HashMap<PathBuf, MountAttrFlags>,
 ) -> Result<()> {
     // Get EUID/EGID outside of the namespace.
     let uid = unsafe { libc::geteuid() };
@@ -48,7 +48,7 @@ pub fn create_namespaces(
 ///
 /// This will deny access to any path which isn't part of `bind_mounts`. Allowed
 /// paths are mounted according to their bind mount flags.
-fn create_mount_namespace(bind_mounts: HashMap<PathBuf, MountFlags>) -> Result<()> {
+fn create_mount_namespace(bind_mounts: HashMap<PathBuf, MountAttrFlags>) -> Result<()> {
     // Create mount namespace to allow creation of new mounts.
     create_user_namespace(0, 0, Namespaces::MOUNT)?;
 
@@ -93,10 +93,13 @@ fn create_mount_namespace(bind_mounts: HashMap<PathBuf, MountFlags>) -> Result<(
         let dst_c = CString::new(dst.as_os_str().as_bytes()).unwrap();
 
         // Create mount target.
-        copy_tree(path, &new_root)?;
+        copy_tree(&path, &new_root)?;
 
         // Bind path with full permissions.
-        bind_mount(&src_c, &dst_c, flags)?;
+        bind_mount(&src_c, &dst_c)?;
+
+        // Remount to update permissions.
+        update_mount_flags(&dst_c, flags | MountAttrFlags::NOSUID)?;
     }
 
     // Bind mount old procfs.
@@ -104,14 +107,14 @@ fn create_mount_namespace(bind_mounts: HashMap<PathBuf, MountFlags>) -> Result<(
     let new_proc = new_root.join("proc");
     let new_proc_c = CString::new(new_proc.as_os_str().as_bytes()).unwrap();
     fs::create_dir_all(&new_proc)?;
-    bind_mount(&old_proc_c, &new_proc_c, MountFlags::empty()).unwrap();
+    bind_mount(&old_proc_c, &new_proc_c).unwrap();
 
     // Pivot root to `new_root`, placing the old root at the same location.
     pivot_root(&new_root_c, &new_root_c)?;
 
     // Remove old root mounted at /, leaving only the new root at the same location.
-    let new_old_c = CString::new("/").unwrap();
-    umount(&new_old_c)?;
+    let root_c = CString::new("/").unwrap();
+    umount(&root_c)?;
 
     // Prevent child mount namespaces from accessing this namespace's mounts.
     deny_mount_propagation()?;
@@ -180,11 +183,31 @@ fn mount_tmpfs(dst: &CStr) -> Result<()> {
 }
 
 /// Create a new bind mount.
-fn bind_mount(src: &CStr, dst: &CStr, flags: MountFlags) -> Result<()> {
-    let flags = MountFlags::BIND | MountFlags::NOSUID | MountFlags::RECURSIVE | flags;
-    let fstype = CString::default();
+fn bind_mount(src: &CStr, dst: &CStr) -> Result<()> {
+    let flags = MountFlags::BIND | MountFlags::RECURSIVE;
+    let res =
+        unsafe { libc::mount(src.as_ptr(), dst.as_ptr(), ptr::null(), flags.bits(), ptr::null()) };
+
+    if res == 0 {
+        Ok(())
+    } else {
+        Err(IoError::last_os_error().into())
+    }
+}
+
+/// Remount an existing bind mount with a new set of mount flags.
+fn update_mount_flags(mount: &CStr, flags: MountAttrFlags) -> Result<()> {
+    let attrs = MountAttr { attr_set: flags.bits(), ..Default::default() };
+
     let res = unsafe {
-        libc::mount(src.as_ptr(), dst.as_ptr(), fstype.as_ptr(), flags.bits(), ptr::null())
+        libc::syscall(
+            libc::SYS_mount_setattr,
+            libc::AT_FDCWD,
+            mount.as_ptr(),
+            libc::AT_RECURSIVE,
+            &attrs as *const _,
+            mem::size_of::<MountAttr>(),
+        )
     };
 
     if res == 0 {
@@ -198,10 +221,8 @@ fn bind_mount(src: &CStr, dst: &CStr, flags: MountFlags) -> Result<()> {
 fn deny_mount_propagation() -> Result<()> {
     let flags = MountFlags::PRIVATE | MountFlags::RECURSIVE;
     let root = CString::new("/").unwrap();
-    let fstype = CString::default();
-    let res = unsafe {
-        libc::mount(root.as_ptr(), root.as_ptr(), fstype.as_ptr(), flags.bits(), ptr::null())
-    };
+    let res =
+        unsafe { libc::mount(ptr::null(), root.as_ptr(), ptr::null(), flags.bits(), ptr::null()) };
 
     if res == 0 {
         Ok(())
@@ -286,9 +307,6 @@ bitflags! {
     pub struct MountFlags: libc::c_ulong {
         /// Create a bind mount.
         const BIND = libc::MS_BIND;
-        /// Do not honor set-user-ID and set-group-ID bits or file capabilities when
-        /// executing programs from this filesystem.
-        const NOSUID = libc::MS_NOSUID;
         /// Used in conjuction with [`Self::BIND`] to create a recursive bind mount, and
         /// in conjuction with the propagation type flags to recursively change the
         /// propagation type of all of the mounts in a sub-tree.
@@ -296,10 +314,47 @@ bitflags! {
         /// Make this mount private. Mount and unmount events do not propagate into or
         /// out of this mount.
         const PRIVATE = libc::MS_PRIVATE;
-        /// Mount filesystem read-only.
-        const READONLY = libc::MS_RDONLY;
-        /// Do not allow programs to be executed from this filesystem.
-        const NOEXEC = libc::MS_NOEXEC;
+    }
+}
+
+/// Parameter for the `mount_setattr` syscall.
+#[repr(C)]
+#[derive(Default)]
+struct MountAttr {
+    attr_set: u64,
+    attr_clr: u64,
+    propagation: u64,
+    userns_fd: u64,
+}
+
+bitflags! {
+    /// Flags for the `mount_setattr` syscall.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    pub struct MountAttrFlags: u64 {
+        /// Mount read-only.
+        const RDONLY          = 0x00000001;
+        /// Ignore suid and sgid bits.
+        const NOSUID          = 0x00000002;
+        /// Disallow access to device special files.
+        const NODEV	          = 0x00000004;
+        /// Disallow program execution.
+        const NOEXEC          = 0x00000008;
+
+        /// Setting on how atime should be updated.
+        const _ATIME          = 0x00000070;
+        /// - Update atime relative to mtime/ctime.
+        const RELATI          = 0x00000000;
+        /// - Do not update access times.
+        const NOATIM          = 0x00000010;
+        /// - Always perform atime updates.
+        const STRICTATIME     = 0x00000020;
+
+        /// Do not update directory access times.
+        const NODIRATIME      = 0x00000080;
+        /// Idmap mount to @userns_fd in struct mount_attr.
+        const IDMAP           = 0x00100000;
+        /// Do not follow symlinks.
+        const NOSYMFOLLOW     = 0x00200000;
     }
 }
 
