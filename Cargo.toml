@@ -50,6 +50,11 @@ path = "tests/fs_symlink_dir.rs"
 harness = false
 
 [[test]]
+name = "fs_broken_symlink"
+path = "tests/fs_broken_symlink.rs"
+harness = false
+
+[[test]]
 name = "fs_null"
 path = "tests/fs_null.rs"
 harness = false
