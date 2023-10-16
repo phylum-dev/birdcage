@@ -17,6 +17,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - (Linux) Root filesystem exceptions failing sandbox creation
 - (Linux) Sandbox not enforcing readonly/noexec restrictions
+- (Linux) Exceptions for special files (i.e. /dev/null)
 
 ## [0.4.0] - 2023-10-09
 
