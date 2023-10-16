@@ -151,12 +151,10 @@ fn copy_tree(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> Result<()> {
 
         // Create target file/directory.
         let metadata = src_sub.metadata()?;
-        if metadata.is_file() {
-            File::create(&dst)?;
-        } else if metadata.is_dir() {
+        if metadata.is_dir() {
             fs::create_dir(&dst)?;
         } else {
-            unreachable!("metadata call failed to follow symlink");
+            File::create(&dst)?;
         }
 
         // Copy permissions.
