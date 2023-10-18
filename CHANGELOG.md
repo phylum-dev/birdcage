@@ -28,6 +28,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Changed
 
 - (Linux) Minimum Kernel version reduced to 3.8
+- The sandboxing process now must be single-threaded
 
 ### Fixed
 
