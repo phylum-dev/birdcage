@@ -6,6 +6,7 @@ use std::ffi::{CStr, CString};
 use std::fs::{self, File};
 use std::io::Error as IoError;
 use std::os::unix::ffi::OsStrExt;
+use std::os::unix::fs as unixfs;
 use std::path::{Component, Path, PathBuf};
 use std::{env, io, mem, ptr};
 
@@ -67,8 +68,25 @@ fn create_mount_namespace(bind_mounts: HashMap<PathBuf, MountAttrFlags>) -> Resu
     // aren't created outside the sandbox.
     mount_tmpfs(&new_root_c)?;
 
+    // Canonicalize paths, to resolve symlinks.
+    //
+    // If the working directory cannot be accessed, we ignore relative paths.
+    let mut symlinks = Vec::new();
+    let mut bind_mounts = bind_mounts
+        .into_iter()
+        .filter_map(|(path, exception)| {
+            let canonicalized = path.canonicalize().ok()?;
+
+            // Store original symlink path to create it if necessary.
+            if let Ok(target) = path.read_link() {
+                symlinks.push((path, target));
+            }
+
+            Some((canonicalized, exception))
+        })
+        .collect::<Vec<_>>();
+
     // Sort bind mounts by shortest length, to create parents before their children.
-    let mut bind_mounts = bind_mounts.into_iter().collect::<Vec<_>>();
     bind_mounts.sort_unstable_by(|(a_path, a_flags), (b_path, b_flags)| {
         match a_path.components().count().cmp(&b_path.components().count()) {
             Ordering::Equal => (a_path, a_flags).cmp(&(b_path, b_flags)),
@@ -78,13 +96,6 @@ fn create_mount_namespace(bind_mounts: HashMap<PathBuf, MountAttrFlags>) -> Resu
 
     // Bind mount all allowed directories.
     for (path, flags) in bind_mounts {
-        // Ensure all paths are absolute, without following symlinks.
-        let path = match absolute(&path) {
-            Ok(path) => normalize_path(&path),
-            // Ignore relative paths if we cannot access the working directory.
-            Err(_) => continue,
-        };
-
         let src_c = CString::new(path.as_os_str().as_bytes()).unwrap();
 
         // Get bind mount destination.
@@ -102,6 +113,9 @@ fn create_mount_namespace(bind_mounts: HashMap<PathBuf, MountAttrFlags>) -> Resu
         update_mount_flags(&dst_c, flags | MountAttrFlags::NOSUID)?;
     }
 
+    // Ensure original symlink paths are available.
+    create_symlinks(&new_root, symlinks)?;
+
     // Bind mount old procfs.
     let old_proc_c = CString::new("/proc").unwrap();
     let new_proc = new_root.join("proc");
@@ -118,6 +132,42 @@ fn create_mount_namespace(bind_mounts: HashMap<PathBuf, MountAttrFlags>) -> Resu
 
     // Prevent child mount namespaces from accessing this namespace's mounts.
     deny_mount_propagation()?;
+
+    Ok(())
+}
+
+/// Create missing symlinks.
+///
+/// If the parent directory of a symlink is mapped, we do not need to map the
+/// symlink ourselves and it's not possible to mount on top of it anyway. So
+/// here we make sure that symlinks are created if no bind mount was created for
+/// their parent directory.
+fn create_symlinks(new_root: &Path, symlinks: Vec<(PathBuf, PathBuf)>) -> Result<()> {
+    for (path, target) in symlinks {
+        // Ensure path is absolute, without following symlinks.
+        let path = match absolute(&path) {
+            Ok(path) => normalize_path(&path),
+            // Ignore relative paths if we cannot access the working directory.
+            Err(_) => continue,
+        };
+
+        // Ignore symlinks if a parent bind mount exists.
+        let unrooted_path = path.strip_prefix("/").unwrap();
+        let dst = new_root.join(unrooted_path);
+        if dst.symlink_metadata().is_ok() {
+            continue;
+        }
+
+        // Create all parent directories.
+        let parent = match path.parent() {
+            Some(parent) => parent,
+            None => continue,
+        };
+        copy_tree(&parent, &new_root)?;
+
+        // Create the symlink.
+        unixfs::symlink(target, dst)?;
+    }
 
     Ok(())
 }
@@ -144,7 +194,9 @@ fn copy_tree(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> Result<()> {
         src_sub = src_sub.join(component);
         dst = dst.join(component);
 
-        // Skip directories that already exist.
+        // TODO: symlink_metadata().is_ok()?
+        //
+        // Skip nodes that already exist.
         if dst.exists() {
             continue;
         }
@@ -170,7 +222,7 @@ fn mount_tmpfs(dst: &CStr) -> Result<()> {
     let flags = MountFlags::empty();
     let fstype = CString::new("tmpfs").unwrap();
     let res = unsafe {
-        libc::mount(fstype.as_ptr(), dst.as_ptr(), fstype.as_ptr(), flags.bits(), ptr::null())
+        libc::mount(ptr::null(), dst.as_ptr(), fstype.as_ptr(), flags.bits(), ptr::null())
     };
 
     if res == 0 {
@@ -312,6 +364,8 @@ bitflags! {
         /// Make this mount private. Mount and unmount events do not propagate into or
         /// out of this mount.
         const PRIVATE = libc::MS_PRIVATE;
+        /// Do not follow symbolic links when resolving paths.
+        const NOSYMFOLLOW = 256;
     }
 }
 

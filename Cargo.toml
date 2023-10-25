@@ -35,6 +35,16 @@ path = "tests/fs_readonly.rs"
 harness = false
 
 [[test]]
+name = "fs_remount"
+path = "tests/fs_remount.rs"
+harness = false
+
+[[test]]
+name = "fs_remount_symlink"
+path = "tests/fs_remount_symlink.rs"
+harness = false
+
+[[test]]
 name = "fs_write_also_read"
 path = "tests/fs_write_also_read.rs"
 harness = false
