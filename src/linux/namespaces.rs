@@ -74,15 +74,23 @@ fn create_mount_namespace(bind_mounts: HashMap<PathBuf, MountAttrFlags>) -> Resu
     let mut symlinks = Vec::new();
     let mut bind_mounts = bind_mounts
         .into_iter()
-        .filter_map(|(path, exception)| {
-            let canonicalized = path.canonicalize().ok()?;
+        .filter_map(|(path, exception)| match path.read_link() {
+            // Handle paths where final component is a symbolic link.
+            Ok(target) => {
+                let canonicalized = path.canonicalize().ok()?;
 
-            // Store original symlink path to create it if necessary.
-            if let Ok(target) = path.read_link() {
+                // Store original symlink path to create it if necessary.
                 symlinks.push((path, target));
-            }
 
-            Some((canonicalized, exception))
+                Some((canonicalized, exception))
+            },
+            // Handle paths where final component is a file or directory.
+            Err(_) => {
+                // Ensure path is absolute, without following symlinks.
+                let absolute = absolute(&path).ok()?;
+                let normalized = normalize_path(&absolute);
+                Some((normalized, exception))
+            },
         })
         .collect::<Vec<_>>();
 
@@ -194,8 +202,6 @@ fn copy_tree(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> Result<()> {
         src_sub = src_sub.join(component);
         dst = dst.join(component);
 
-        // TODO: symlink_metadata().is_ok()?
-        //
         // Skip nodes that already exist.
         if dst.exists() {
             continue;

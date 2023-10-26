@@ -25,6 +25,11 @@ path = "tests/exec.rs"
 harness = false
 
 [[test]]
+name = "exec_symlinked"
+path = "tests/exec_symlinked.rs"
+harness = false
+
+[[test]]
 name = "fs"
 path = "tests/fs.rs"
 harness = false
