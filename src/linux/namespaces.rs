@@ -68,29 +68,25 @@ fn create_mount_namespace(bind_mounts: HashMap<PathBuf, MountAttrFlags>) -> Resu
     // aren't created outside the sandbox.
     mount_tmpfs(&new_root_c)?;
 
-    // Canonicalize paths, to resolve symlinks.
+    // Canonicalize paths and resolve symlinks.
     //
     // If the working directory cannot be accessed, we ignore relative paths.
     let mut symlinks = Vec::new();
     let mut bind_mounts = bind_mounts
         .into_iter()
-        .filter_map(|(path, exception)| match path.read_link() {
-            // Handle paths where final component is a symbolic link.
-            Ok(target) => {
-                let canonicalized = path.canonicalize().ok()?;
+        .filter_map(|(path, exception)| {
+            let canonicalized = path.canonicalize().ok()?;
 
-                // Store original symlink path to create it if necessary.
-                symlinks.push((path, target));
-
-                Some((canonicalized, exception))
-            },
-            // Handle paths where final component is a file or directory.
-            Err(_) => {
-                // Ensure path is absolute, without following symlinks.
+            // Store original symlink path to create it if necessary.
+            if path_has_symlinks(&path) {
+                // Normalize symlink's path.
                 let absolute = absolute(&path).ok()?;
                 let normalized = normalize_path(&absolute);
-                Some((normalized, exception))
-            },
+
+                symlinks.push((normalized, canonicalized.clone()));
+            }
+
+            Some((canonicalized, exception))
         })
         .collect::<Vec<_>>();
 
@@ -151,27 +147,20 @@ fn create_mount_namespace(bind_mounts: HashMap<PathBuf, MountAttrFlags>) -> Resu
 /// here we make sure that symlinks are created if no bind mount was created for
 /// their parent directory.
 fn create_symlinks(new_root: &Path, symlinks: Vec<(PathBuf, PathBuf)>) -> Result<()> {
-    for (path, target) in symlinks {
-        // Ensure path is absolute, without following symlinks.
-        let path = match absolute(&path) {
-            Ok(path) => normalize_path(&path),
-            // Ignore relative paths if we cannot access the working directory.
-            Err(_) => continue,
-        };
-
+    for (symlink, target) in symlinks {
         // Ignore symlinks if a parent bind mount exists.
-        let unrooted_path = path.strip_prefix("/").unwrap();
+        let unrooted_path = symlink.strip_prefix("/").unwrap();
         let dst = new_root.join(unrooted_path);
         if dst.symlink_metadata().is_ok() {
             continue;
         }
 
         // Create all parent directories.
-        let parent = match path.parent() {
+        let parent = match symlink.parent() {
             Some(parent) => parent,
             None => continue,
         };
-        copy_tree(&parent, &new_root)?;
+        copy_tree(parent, new_root)?;
 
         // Create the symlink.
         unixfs::symlink(target, dst)?;
@@ -534,4 +523,11 @@ fn normalize_path(path: &Path) -> PathBuf {
     }
 
     normalized
+}
+
+/// Check if a path contains any symlinks.
+fn path_has_symlinks(path: &Path) -> bool {
+    path.ancestors()
+        .flat_map(|path| path.symlink_metadata().ok())
+        .any(|metadata| metadata.is_symlink())
 }

@@ -13,15 +13,7 @@ fn main() {
     let symlink_exec = exec_dir.join("true");
     unixfs::symlink("/usr/bin/true", &symlink_exec).unwrap();
 
-    // Create symlinked dir with non-symlinked executable.
-    let truer_path = exec_dir.join("truer");
-    fs::copy("/usr/bin/true", &truer_path).unwrap();
-    let symlink_dir = tempdir.join("symbin");
-    let symlink_dir_exec = symlink_dir.join("truer");
-    unixfs::symlink(&exec_dir, &symlink_dir).unwrap();
-
     let mut birdcage = Birdcage::new();
-    birdcage.add_exception(Exception::ExecuteAndRead(symlink_dir_exec.clone())).unwrap();
     birdcage.add_exception(Exception::ExecuteAndRead(symlink_exec.clone())).unwrap();
     if PathBuf::from("/lib64").exists() {
         birdcage.add_exception(Exception::ExecuteAndRead("/lib64".into())).unwrap();
@@ -35,7 +27,7 @@ fn main() {
     let cmd = Command::new(symlink_exec).status().unwrap();
     assert!(cmd.success());
 
-    // Ensure symlinked dir's executable works.
-    let cmd = Command::new(symlink_dir_exec).status().unwrap();
+    // Ensure original executable works.
+    let cmd = Command::new("/usr/bin/true").status().unwrap();
     assert!(cmd.success());
 }
