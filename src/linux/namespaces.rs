@@ -527,7 +527,5 @@ fn normalize_path(path: &Path) -> PathBuf {
 
 /// Check if a path contains any symlinks.
 fn path_has_symlinks(path: &Path) -> bool {
-    path.ancestors()
-        .flat_map(|path| path.symlink_metadata().ok())
-        .any(|metadata| metadata.is_symlink())
+    path.ancestors().any(|path| path.read_link().is_ok())
 }
