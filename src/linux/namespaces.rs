@@ -6,7 +6,7 @@ use std::fs::{self, File};
 use std::io::Error as IoError;
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::fs as unixfs;
-use std::path::{Path, PathBuf, Component};
+use std::path::{Component, Path, PathBuf};
 use std::{env, mem, ptr};
 
 use bitflags::bitflags;
@@ -23,7 +23,7 @@ const NEW_ROOT: &str = "/tmp/birdcage-root";
 ///
 /// Additionally it will isolate network access if `allow_networking` is
 /// `false`.
-pub fn create_namespaces(allow_networking: bool, exceptions: PathExceptions) -> Result<()> {
+pub(crate) fn create_namespaces(allow_networking: bool, exceptions: PathExceptions) -> Result<()> {
     // Get EUID/EGID outside of the namespace.
     let uid = unsafe { libc::geteuid() };
     let gid = unsafe { libc::getegid() };
