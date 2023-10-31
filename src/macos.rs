@@ -115,7 +115,11 @@ impl MacSandbox {
     fn create_profile(&self) -> Result<Vec<u8>> {
         let mut profile = DEFAULT_RULE.to_vec();
 
-        for (path, exception) in &self.path_exceptions {
+        // Sort by component count to ensure parent paths appear before descendants.
+        let mut path_exceptions: Vec<_> = self.path_exceptions.iter().collect();
+        path_exceptions.sort_unstable_by(|a, b| a.0.len().cmp(&b.0.len()));
+
+        for (path, exception) in path_exceptions {
             // Deny all access to clear existing permission grants.
             Self::revoke_path_access(&mut profile, path)?;
 
