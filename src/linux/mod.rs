@@ -29,20 +29,10 @@ impl Sandbox for LinuxSandbox {
     }
 
     fn add_exception(&mut self, exception: Exception) -> Result<&mut Self> {
-        // Report error if exception is added for an invalid path.
-        if let Exception::Read(path)
-        | Exception::WriteAndRead(path)
-        | Exception::ExecuteAndRead(path) = &exception
-        {
-            if !path.exists() {
-                return Err(Error::InvalidPath(path.into()));
-            }
-        }
-
         match exception {
-            Exception::Read(path) => self.path_exceptions.update(path, false, false),
-            Exception::WriteAndRead(path) => self.path_exceptions.update(path, true, false),
-            Exception::ExecuteAndRead(path) => self.path_exceptions.update(path, false, true),
+            Exception::Read(path) => self.path_exceptions.update(path, false, false)?,
+            Exception::WriteAndRead(path) => self.path_exceptions.update(path, true, false)?,
+            Exception::ExecuteAndRead(path) => self.path_exceptions.update(path, false, true)?,
             Exception::Environment(key) => self.env_exceptions.push(key),
             Exception::FullEnvironment => self.full_env = true,
             Exception::Networking => self.allow_networking = true,
@@ -88,7 +78,7 @@ impl PathExceptions {
     ///
     /// If the bind mount already exists, it will *ADD* the additional
     /// permissions.
-    fn update(&mut self, path: PathBuf, write: bool, execute: bool) {
+    fn update(&mut self, path: PathBuf, write: bool, execute: bool) -> Result<()> {
         // Use canonical path for indexing.
         //
         // This ensures that a symlink and its target are treated like the same path for
@@ -97,16 +87,13 @@ impl PathExceptions {
         // If the home path cannot be accessed, we ignore the exception.
         let canonical_path = match path.canonicalize() {
             Ok(path) => path,
-            Err(_) => return,
+            Err(_) => return Err(Error::InvalidPath(path)),
         };
 
         // Store original symlink path to create it if necessary.
         if path_has_symlinks(&path) {
             // Normalize symlink's path.
-            let absolute = match absolute(&path) {
-                Ok(absolute) => absolute,
-                Err(_) => return,
-            };
+            let absolute = absolute(&path)?;
             let normalized = normalize_path(&absolute);
 
             self.symlinks.push((normalized, canonical_path.clone()));
@@ -126,6 +113,8 @@ impl PathExceptions {
         if execute {
             flags.remove(MountAttrFlags::NOEXEC);
         }
+
+        Ok(())
     }
 }
 
