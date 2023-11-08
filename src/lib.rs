@@ -60,10 +60,6 @@ pub trait Sandbox: Sized {
 
     /// Add a new exception to the sandbox.
     ///
-    /// This exception opens up the sandbox to allow access for the specified
-    /// operation. Once an exception is added, it is **not** possible to
-    /// prohibit access to this resource without creating a new sandbox.
-    ///
     /// Exceptions added for symlinks will also automatically apply to the
     /// symlink's target.
     fn add_exception(&mut self, exception: Exception) -> Result<&mut Self>;

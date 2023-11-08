@@ -50,6 +50,11 @@ path = "tests/fs_readonly.rs"
 harness = false
 
 [[test]]
+name = "fs_restrict_child"
+path = "tests/fs_restrict_child.rs"
+harness = false
+
+[[test]]
 name = "fs_write_also_read"
 path = "tests/fs_write_also_read.rs"
 harness = false
