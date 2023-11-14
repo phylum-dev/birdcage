@@ -75,6 +75,11 @@ path = "tests/fs_broken_symlink.rs"
 harness = false
 
 [[test]]
+name = "fs_symlink_dir_separate_perms"
+path = "tests/fs_symlink_dir_separate_perms.rs"
+harness = false
+
+[[test]]
 name = "fs_null"
 path = "tests/fs_null.rs"
 harness = false

@@ -1,18 +1,18 @@
 //! Linux namespaces.
 
 use std::cmp::Ordering;
-use std::collections::HashMap;
 use std::ffi::{CStr, CString};
 use std::fs::{self, File};
 use std::io::Error as IoError;
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::fs as unixfs;
 use std::path::{Component, Path, PathBuf};
-use std::{env, io, mem, ptr};
+use std::{env, mem, ptr};
 
 use bitflags::bitflags;
 
 use crate::error::Result;
+use crate::linux::PathExceptions;
 
 /// Path for mount namespace's new root.
 const NEW_ROOT: &str = "/tmp/birdcage-root";
@@ -23,10 +23,7 @@ const NEW_ROOT: &str = "/tmp/birdcage-root";
 ///
 /// Additionally it will isolate network access if `allow_networking` is
 /// `false`.
-pub fn create_namespaces(
-    allow_networking: bool,
-    bind_mounts: HashMap<PathBuf, MountAttrFlags>,
-) -> Result<()> {
+pub(crate) fn create_namespaces(allow_networking: bool, exceptions: PathExceptions) -> Result<()> {
     // Get EUID/EGID outside of the namespace.
     let uid = unsafe { libc::geteuid() };
     let gid = unsafe { libc::getegid() };
@@ -37,7 +34,7 @@ pub fn create_namespaces(
     }
 
     // Isolate filesystem and procfs.
-    create_mount_namespace(bind_mounts)?;
+    create_mount_namespace(exceptions)?;
 
     // Drop root user mapping and ensure abstract namespace is cleared.
     create_user_namespace(uid, gid, Namespaces::empty())?;
@@ -49,7 +46,7 @@ pub fn create_namespaces(
 ///
 /// This will deny access to any path which isn't part of `bind_mounts`. Allowed
 /// paths are mounted according to their bind mount flags.
-fn create_mount_namespace(bind_mounts: HashMap<PathBuf, MountAttrFlags>) -> Result<()> {
+fn create_mount_namespace(exceptions: PathExceptions) -> Result<()> {
     // Create mount namespace to allow creation of new mounts.
     create_user_namespace(0, 0, Namespaces::MOUNT)?;
 
@@ -68,29 +65,8 @@ fn create_mount_namespace(bind_mounts: HashMap<PathBuf, MountAttrFlags>) -> Resu
     // aren't created outside the sandbox.
     mount_tmpfs(&new_root_c)?;
 
-    // Canonicalize paths and resolve symlinks.
-    //
-    // If the working directory cannot be accessed, we ignore relative paths.
-    let mut symlinks = Vec::new();
-    let mut bind_mounts = bind_mounts
-        .into_iter()
-        .filter_map(|(path, exception)| {
-            let canonicalized = path.canonicalize().ok()?;
-
-            // Store original symlink path to create it if necessary.
-            if path_has_symlinks(&path) {
-                // Normalize symlink's path.
-                let absolute = absolute(&path).ok()?;
-                let normalized = normalize_path(&absolute);
-
-                symlinks.push((normalized, canonicalized.clone()));
-            }
-
-            Some((canonicalized, exception))
-        })
-        .collect::<Vec<_>>();
-
     // Sort bind mounts by shortest length, to create parents before their children.
+    let mut bind_mounts: Vec<_> = exceptions.bind_mounts.into_iter().collect();
     bind_mounts.sort_unstable_by(|(a_path, a_flags), (b_path, b_flags)| {
         match a_path.components().count().cmp(&b_path.components().count()) {
             Ordering::Equal => (a_path, a_flags).cmp(&(b_path, b_flags)),
@@ -118,7 +94,7 @@ fn create_mount_namespace(bind_mounts: HashMap<PathBuf, MountAttrFlags>) -> Resu
     }
 
     // Ensure original symlink paths are available.
-    create_symlinks(&new_root, symlinks)?;
+    create_symlinks(&new_root, exceptions.symlinks)?;
 
     // Bind mount old procfs.
     let old_proc_c = CString::new("/proc").unwrap();
@@ -456,76 +432,4 @@ bitflags! {
         /// corresponding semaphores
         const SYSVSEM = libc::CLONE_SYSVSEM;
     }
-}
-
-// Copied from Rust's STD:
-// https://github.com/rust-lang/rust/blob/42faef503f3e765120ca0ef06991337668eafc32/library/std/src/sys/unix/path.rs#L23C1-L63C2
-//
-// Licensed under MIT:
-// https://github.com/rust-lang/rust/blob/master/LICENSE-MIT
-//
-/// Make a POSIX path absolute without changing its semantics.
-fn absolute(path: &Path) -> io::Result<PathBuf> {
-    // This is mostly a wrapper around collecting `Path::components`, with
-    // exceptions made where this conflicts with the POSIX specification.
-    // See 4.13 Pathname Resolution, IEEE Std 1003.1-2017
-    // https://pubs.opengroup.org/onlinepubs/9699919799/basedefs/V1_chap04.html#tag_04_13
-
-    // Get the components, skipping the redundant leading "." component if it
-    // exists.
-    let mut components = path.strip_prefix(".").unwrap_or(path).components();
-    let path_os = path.as_os_str().as_bytes();
-
-    let mut normalized = if path.is_absolute() {
-        // "If a pathname begins with two successive <slash> characters, the
-        // first component following the leading <slash> characters may be
-        // interpreted in an implementation-defined manner, although more than
-        // two leading <slash> characters shall be treated as a single <slash>
-        // character."
-        if path_os.starts_with(b"//") && !path_os.starts_with(b"///") {
-            components.next();
-            PathBuf::from("//")
-        } else {
-            PathBuf::new()
-        }
-    } else {
-        env::current_dir()?
-    };
-    normalized.extend(components);
-
-    // "Interfaces using pathname resolution may specify additional constraints
-    // when a pathname that does not name an existing directory contains at
-    // least one non- <slash> character and contains one or more trailing
-    // <slash> characters".
-    // A trailing <slash> is also meaningful if "a symbolic link is
-    // encountered during pathname resolution".
-    if path_os.ends_with(b"/") {
-        normalized.push("");
-    }
-
-    Ok(normalized)
-}
-
-/// Normalize path components, stripping out `.` and `..`.
-fn normalize_path(path: &Path) -> PathBuf {
-    let mut normalized = PathBuf::new();
-
-    for component in path.components() {
-        match component {
-            Component::Prefix(_) => unreachable!("impl does not consider windows"),
-            Component::RootDir => normalized.push("/"),
-            Component::CurDir => continue,
-            Component::ParentDir => {
-                normalized.pop();
-            },
-            Component::Normal(segment) => normalized.push(segment),
-        }
-    }
-
-    normalized
-}
-
-/// Check if a path contains any symlinks.
-fn path_has_symlinks(path: &Path) -> bool {
-    path.ancestors().any(|path| path.read_link().is_ok())
 }
