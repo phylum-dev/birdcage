@@ -1,15 +1,24 @@
 use std::net::TcpStream;
+use std::path::PathBuf;
 use std::process::Command;
 use std::{env, fs};
 
 use birdcage::{Birdcage, Sandbox};
+use serde::{Deserialize, Serialize};
 use tempfile::NamedTempFile;
 
-fn main() {
+use crate::TestSetup;
+
+#[derive(Serialize, Deserialize)]
+struct TestData {
+    path: PathBuf,
+}
+
+pub fn setup() -> TestSetup {
     const FILE_CONTENT: &str = "expected content";
 
     // Create testfile.
-    let path = NamedTempFile::new().unwrap();
+    let path = NamedTempFile::new().unwrap().into_temp_path().keep().unwrap();
 
     // Ensure non-sandboxed write works.
     fs::write(&path, FILE_CONTENT.as_bytes()).unwrap();
@@ -31,15 +40,26 @@ fn main() {
     env::set_var("TEST", "value");
     assert_eq!(env::var("TEST"), Ok("value".into()));
 
-    // Activate our sandbox.
-    Birdcage::new().lock().unwrap();
+    // Setup birdcage sandbox.
+    let sandbox = Birdcage::new();
+
+    // Serialize test data.
+    let data = TestData { path };
+    let data = serde_json::to_string(&data).unwrap();
+
+    TestSetup { sandbox, data }
+}
+
+pub fn validate(data: String) {
+    // Deserialize test data.
+    let data: TestData = serde_json::from_str(&data).unwrap();
 
     // Ensure sandboxed write is blocked.
-    let result = fs::write(&path, b"x");
+    let result = fs::write(&data.path, b"x");
     assert!(result.is_err());
 
     // Ensure sandboxed read is blocked.
-    let result = fs::read_to_string(path);
+    let result = fs::read_to_string(data.path);
     assert!(result.is_err());
 
     // Ensure sandboxed socket connect is blocked.

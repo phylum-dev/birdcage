@@ -65,11 +65,12 @@ fn main() -> Result<(), Box<dyn Error>> {
     }
 
     // Activate sandbox.
-    birdcage.lock().unwrap();
+    let mut command = Command::new(cli.cmd);
+    command.args(&cli.args);
+    let mut child = birdcage.spawn(command)?;
 
-    // Run the command.
-    let status = Command::new(cli.cmd).args(&cli.args).spawn()?.wait()?;
-    let exit_code = status.code().unwrap_or(111);
+    // Wait for sandboxee to exit.
+    let exit_code = child.wait()?.code().unwrap_or(111);
 
     process::exit(exit_code);
 }
