@@ -2,7 +2,7 @@
 
 use std::collections::HashMap;
 use std::ffi::CString;
-use std::io::Error as IoError;
+use std::io::{Error as IoError, ErrorKind as IoErrorKind};
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::process::CommandExt;
 use std::path::{Component, Path, PathBuf};
@@ -77,6 +77,10 @@ impl Sandbox for LinuxSandbox {
             sandboxee.pre_exec(move || post_fork(uid, gid, self.allow_networking)).spawn()?
         };
 
+        // TODO
+        // Drop root user mapping for the parent process.
+        // namespaces::create_user_namespace(uid, gid, Namespaces::empty()).unwrap();
+
         Ok(child)
     }
 }
@@ -101,7 +105,7 @@ fn post_fork(uid: u32, gid: u32, allow_networking: bool) -> io::Result<()> {
     namespaces::create_user_namespace(uid, gid, Namespaces::empty())?;
 
     // Setup system call filters.
-    SyscallFilter::apply().map_err(io::Error::other)?;
+    SyscallFilter::apply().map_err(|err| IoError::new(IoErrorKind::Other, err))?;
 
     // Block suid/sgid.
     //
