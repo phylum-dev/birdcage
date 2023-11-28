@@ -20,7 +20,7 @@ const NEW_ROOT: &str = "/tmp/birdcage-root";
 ///
 /// This will deny access to any path which isn't part of `bind_mounts`. Allowed
 /// paths are mounted according to their bind mount flags.
-pub fn setup_mount_namespace(exceptions: PathExceptions) -> io::Result<()> {
+pub(crate) fn setup_mount_namespace(exceptions: PathExceptions) -> io::Result<()> {
     // Get target paths for new and old root.
     let new_root = PathBuf::from(NEW_ROOT);
 

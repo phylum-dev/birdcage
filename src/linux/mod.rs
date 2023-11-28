@@ -77,10 +77,6 @@ impl Sandbox for LinuxSandbox {
             sandboxee.pre_exec(move || post_fork(uid, gid, self.allow_networking)).spawn()?
         };
 
-        // TODO
-        // Drop root user mapping for the parent process.
-        // namespaces::create_user_namespace(uid, gid, Namespaces::empty()).unwrap();
-
         Ok(child)
     }
 }
