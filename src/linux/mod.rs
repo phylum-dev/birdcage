@@ -60,14 +60,14 @@ impl Sandbox for LinuxSandbox {
         let uid = unsafe { libc::geteuid() };
         let gid = unsafe { libc::getegid() };
 
-        // Isolate filesystem using a mount namespace.
-        namespaces::create_mount_namespace(self.path_exceptions)?;
-
         // Setup PID namespace.
         //
         // Create a new PID namespace before spawning the child to make it PID 1. The
         // mount namespace is required to create `/proc` after process creation.
         namespaces::create_user_namespace(0, 0, Namespaces::PID | Namespaces::MOUNT)?;
+
+        // Isolate filesystem using a mount namespace.
+        namespaces::setup_mount_namespace(self.path_exceptions)?;
 
         // Spawn the sandboxee.
         //

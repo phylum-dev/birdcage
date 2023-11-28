@@ -16,14 +16,11 @@ use crate::linux::PathExceptions;
 /// Path for mount namespace's new root.
 const NEW_ROOT: &str = "/tmp/birdcage-root";
 
-/// Create a mount namespace to isolate filesystem access.
+/// Isolate filesystem access in an existing mount namespace.
 ///
 /// This will deny access to any path which isn't part of `bind_mounts`. Allowed
 /// paths are mounted according to their bind mount flags.
-pub fn create_mount_namespace(exceptions: PathExceptions) -> io::Result<()> {
-    // Create mount namespace to allow creation of new mounts.
-    create_user_namespace(0, 0, Namespaces::MOUNT)?;
-
+pub fn setup_mount_namespace(exceptions: PathExceptions) -> io::Result<()> {
     // Get target paths for new and old root.
     let new_root = PathBuf::from(NEW_ROOT);
 
