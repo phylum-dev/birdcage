@@ -60,11 +60,6 @@ impl Sandbox for LinuxSandbox {
         let uid = unsafe { libc::geteuid() };
         let gid = unsafe { libc::getegid() };
 
-        // Isolate networking using a network namespace.
-        if !self.allow_networking {
-            namespaces::create_user_namespace(0, 0, Namespaces::NETWORK)?;
-        }
-
         // Isolate filesystem using a mount namespace.
         namespaces::create_mount_namespace(self.path_exceptions)?;
 
@@ -78,7 +73,9 @@ impl Sandbox for LinuxSandbox {
         //
         // We make use of `pre_exec` to create the remaining resource restrictions which
         // must be setup in the sandboxee's process context.
-        let child = unsafe { sandboxee.pre_exec(move || post_fork(uid, gid)).spawn()? };
+        let child = unsafe {
+            sandboxee.pre_exec(move || post_fork(uid, gid, self.allow_networking)).spawn()?
+        };
 
         Ok(child)
     }
@@ -90,10 +87,15 @@ impl Sandbox for LinuxSandbox {
 // lot of children.
 //
 /// Sandboxing steps executed in the new process' context.
-fn post_fork(uid: u32, gid: u32) -> io::Result<()> {
+fn post_fork(uid: u32, gid: u32, allow_networking: bool) -> io::Result<()> {
     // Create new procfs directory.
     let new_proc_c = CString::new("/proc").unwrap();
     namespaces::mount_proc(&new_proc_c)?;
+
+    // Isolate networking using a network namespace.
+    if !allow_networking {
+        namespaces::create_user_namespace(0, 0, Namespaces::NETWORK)?;
+    }
 
     // Drop root user mapping and ensure abstract namespace is cleared.
     namespaces::create_user_namespace(uid, gid, Namespaces::empty())?;

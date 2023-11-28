@@ -11,7 +11,6 @@ use std::{env, io, mem, ptr};
 
 use bitflags::bitflags;
 
-use crate::error::Result;
 use crate::linux::PathExceptions;
 
 /// Path for mount namespace's new root.
@@ -21,7 +20,7 @@ const NEW_ROOT: &str = "/tmp/birdcage-root";
 ///
 /// This will deny access to any path which isn't part of `bind_mounts`. Allowed
 /// paths are mounted according to their bind mount flags.
-pub fn create_mount_namespace(exceptions: PathExceptions) -> Result<()> {
+pub fn create_mount_namespace(exceptions: PathExceptions) -> io::Result<()> {
     // Create mount namespace to allow creation of new mounts.
     create_user_namespace(0, 0, Namespaces::MOUNT)?;
 
@@ -97,7 +96,7 @@ pub fn create_mount_namespace(exceptions: PathExceptions) -> Result<()> {
 /// symlink ourselves and it's not possible to mount on top of it anyway. So
 /// here we make sure that symlinks are created if no bind mount was created for
 /// their parent directory.
-fn create_symlinks(new_root: &Path, symlinks: Vec<(PathBuf, PathBuf)>) -> Result<()> {
+fn create_symlinks(new_root: &Path, symlinks: Vec<(PathBuf, PathBuf)>) -> io::Result<()> {
     for (symlink, target) in symlinks {
         // Ignore symlinks if a parent bind mount exists.
         let unrooted_path = symlink.strip_prefix("/").unwrap();
@@ -127,7 +126,7 @@ fn create_symlinks(new_root: &Path, symlinks: Vec<(PathBuf, PathBuf)>) -> Result
 ///
 /// If `src` ends in a file, an empty file with matching permissions will be
 /// created.
-fn copy_tree(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> Result<()> {
+fn copy_tree(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> io::Result<()> {
     let mut dst = dst.as_ref().to_path_buf();
     let mut src_sub = PathBuf::new();
     let src = src.as_ref();
@@ -164,7 +163,7 @@ fn copy_tree(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> Result<()> {
 }
 
 /// Mount a new tmpfs.
-fn mount_tmpfs(dst: &CStr) -> Result<()> {
+fn mount_tmpfs(dst: &CStr) -> io::Result<()> {
     let flags = MountFlags::empty();
     let fstype = CString::new("tmpfs").unwrap();
     let res = unsafe {
@@ -174,7 +173,7 @@ fn mount_tmpfs(dst: &CStr) -> Result<()> {
     if res == 0 {
         Ok(())
     } else {
-        Err(IoError::last_os_error().into())
+        Err(IoError::last_os_error())
     }
 }
 
@@ -194,7 +193,7 @@ pub fn mount_proc(dst: &CStr) -> io::Result<()> {
 }
 
 /// Create a new bind mount.
-fn bind_mount(src: &CStr, dst: &CStr) -> Result<()> {
+fn bind_mount(src: &CStr, dst: &CStr) -> io::Result<()> {
     let flags = MountFlags::BIND | MountFlags::RECURSIVE;
     let res =
         unsafe { libc::mount(src.as_ptr(), dst.as_ptr(), ptr::null(), flags.bits(), ptr::null()) };
@@ -202,12 +201,12 @@ fn bind_mount(src: &CStr, dst: &CStr) -> Result<()> {
     if res == 0 {
         Ok(())
     } else {
-        Err(IoError::last_os_error().into())
+        Err(IoError::last_os_error())
     }
 }
 
 /// Remount an existing bind mount with a new set of mount flags.
-fn update_mount_flags(mount: &CStr, flags: MountAttrFlags) -> Result<()> {
+fn update_mount_flags(mount: &CStr, flags: MountAttrFlags) -> io::Result<()> {
     let attrs = MountAttr { attr_set: flags.bits(), ..Default::default() };
 
     let res = unsafe {
@@ -224,12 +223,12 @@ fn update_mount_flags(mount: &CStr, flags: MountAttrFlags) -> Result<()> {
     if res == 0 {
         Ok(())
     } else {
-        Err(IoError::last_os_error().into())
+        Err(IoError::last_os_error())
     }
 }
 
 /// Recursively update the root to deny mount propagation.
-fn deny_mount_propagation() -> Result<()> {
+fn deny_mount_propagation() -> io::Result<()> {
     let flags = MountFlags::PRIVATE | MountFlags::RECURSIVE;
     let root = CString::new("/").unwrap();
     let res =
@@ -238,14 +237,14 @@ fn deny_mount_propagation() -> Result<()> {
     if res == 0 {
         Ok(())
     } else {
-        Err(IoError::last_os_error().into())
+        Err(IoError::last_os_error())
     }
 }
 
 /// Change root directory to `new_root` and mount the old root in `put_old`.
 ///
 /// The `put_old` directory must be at or undearneath `new_root`.
-fn pivot_root(new_root: &CStr, put_old: &CStr) -> Result<()> {
+fn pivot_root(new_root: &CStr, put_old: &CStr) -> io::Result<()> {
     // Get target working directory path.
     let working_dir = env::current_dir().unwrap_or_else(|_| PathBuf::from("/"));
 
@@ -253,7 +252,7 @@ fn pivot_root(new_root: &CStr, put_old: &CStr) -> Result<()> {
         unsafe { libc::syscall(libc::SYS_pivot_root, new_root.as_ptr(), put_old.as_ptr()) };
 
     if result != 0 {
-        return Err(IoError::last_os_error().into());
+        return Err(IoError::last_os_error());
     }
 
     // Attempt to recover working directory, or switch to root.
@@ -268,12 +267,12 @@ fn pivot_root(new_root: &CStr, put_old: &CStr) -> Result<()> {
 }
 
 /// Unmount a filesystem.
-fn umount(target: &CStr) -> Result<()> {
+fn umount(target: &CStr) -> io::Result<()> {
     let result = unsafe { libc::umount2(target.as_ptr(), libc::MNT_DETACH) };
 
     match result {
         0 => Ok(()),
-        _ => Err(IoError::last_os_error().into()),
+        _ => Err(IoError::last_os_error()),
     }
 }
 
