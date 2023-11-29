@@ -20,12 +20,12 @@
 //!
 //! // Allow access to our test executable.
 //! let mut sandbox = Birdcage::new();
-//! sandbox.add_exception(Exception::ExecuteAndRead("/usr/bin/cat".into())).unwrap();
+//! sandbox.add_exception(Exception::ExecuteAndRead("/bin/cat".into())).unwrap();
 //! let _ = sandbox.add_exception(Exception::ExecuteAndRead("/lib64".into()));
 //! let _ = sandbox.add_exception(Exception::ExecuteAndRead("/lib".into()));
 //!
 //! // Initialize the sandbox; by default everything is prohibited.
-//! let mut command = Command::new("/usr/cat");
+//! let mut command = Command::new("/bin/cat");
 //! command.arg(file.path());
 //! let mut child = sandbox.spawn(command).unwrap();
 //!
