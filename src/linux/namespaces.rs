@@ -55,7 +55,10 @@ pub(crate) fn setup_mount_namespace(exceptions: PathExceptions) -> io::Result<()
         let dst_c = CString::new(dst.as_os_str().as_bytes()).unwrap();
 
         // Create mount target.
-        copy_tree(&path, &new_root)?;
+        if let Err(err) = copy_tree(&path, &new_root) {
+            log::error!("skipping birdcage exception {path:?}: {err}");
+            continue;
+        }
 
         // Bind path with full permissions.
         bind_mount(&src_c, &dst_c)?;
