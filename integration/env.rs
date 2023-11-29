@@ -17,9 +17,7 @@ pub fn setup() -> TestSetup {
 }
 
 pub fn validate(_data: String) {
-    // The `PUBLIC` environment variable can be accessed.
-    assert_eq!(env::var("PUBLIC"), Ok("GOOD".into()));
-
-    // The `PRIVATE` environment variable was removed.
-    assert_eq!(env::var_os("PRIVATE"), None);
+    // Only the `PUBLIC` environment variable remains.
+    let env: Vec<_> = env::vars().collect();
+    assert_eq!(env, vec![("PUBLIC".into(), "GOOD".into())]);
 }
