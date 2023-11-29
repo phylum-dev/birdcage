@@ -12,7 +12,7 @@ pub fn setup() -> TestSetup {
     let mut sandbox = Birdcage::new();
     sandbox.add_exception(Exception::Read(tempfile.path().into())).unwrap();
 
-    drop(tempfile);
+    tempfile.close().unwrap();
 
     TestSetup { sandbox, data: String::new() }
 }
