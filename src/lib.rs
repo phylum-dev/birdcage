@@ -5,10 +5,11 @@
 //!
 //! # Example
 //!
-//! ```rust,ignore
+//! ```rust
 //! use std::fs;
+//! use std::process::Command;
 //!
-//! use birdcage::{Birdcage, Sandbox};
+//! use birdcage::{Birdcage, Exception, Sandbox};
 //! use tempfile::NamedTempFile;
 //!
 //! // Setup our test file.
@@ -17,12 +18,22 @@
 //! // Reads without sandbox work.
 //! fs::read_to_string(file.path()).unwrap();
 //!
+//! // Allow access to our test executable.
+//! let mut sandbox = Birdcage::new();
+//! sandbox.add_exception(Exception::ExecuteAndRead("/usr/bin/cat".into())).unwrap();
+//! let _ = sandbox.add_exception(Exception::ExecuteAndRead("/usr/lib64".into()));
+//! let _ = sandbox.add_exception(Exception::ExecuteAndRead("/usr/lib".into()));
+//! let _ = sandbox.add_exception(Exception::ExecuteAndRead("/lib64".into()));
+//! let _ = sandbox.add_exception(Exception::ExecuteAndRead("/lib".into()));
+//!
 //! // Initialize the sandbox; by default everything is prohibited.
-//! Birdcage::new().spawn().unwrap();
+//! let mut command = Command::new("/usr/bin/cat");
+//! command.arg(file.path());
+//! let mut child = sandbox.spawn(command).unwrap();
 //!
 //! // Reads with sandbox should fail.
-//! let result = fs::read_to_string(file.path());
-//! assert!(result.is_err());
+//! let status = child.wait().unwrap();
+//! assert!(!status.success());
 //! ```
 
 use std::env;
