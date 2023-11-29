@@ -21,8 +21,6 @@
 //! // Allow access to our test executable.
 //! let mut sandbox = Birdcage::new();
 //! sandbox.add_exception(Exception::ExecuteAndRead("/usr/bin/cat".into())).unwrap();
-//! let _ = sandbox.add_exception(Exception::ExecuteAndRead("/usr/lib64".into()));
-//! let _ = sandbox.add_exception(Exception::ExecuteAndRead("/usr/lib".into()));
 //! let _ = sandbox.add_exception(Exception::ExecuteAndRead("/lib64".into()));
 //! let _ = sandbox.add_exception(Exception::ExecuteAndRead("/lib".into()));
 //!
