@@ -25,7 +25,7 @@
 //! let _ = sandbox.add_exception(Exception::ExecuteAndRead("/lib".into()));
 //!
 //! // Initialize the sandbox; by default everything is prohibited.
-//! let mut command = Command::new("/usr/bin/cat");
+//! let mut command = Command::new("/usr/cat");
 //! command.arg(file.path());
 //! let mut child = sandbox.spawn(command).unwrap();
 //!
