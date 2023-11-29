@@ -7,49 +7,20 @@ use std::io::Error as IoError;
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::fs as unixfs;
 use std::path::{Component, Path, PathBuf};
-use std::{env, mem, ptr};
+use std::{env, io, mem, ptr};
 
 use bitflags::bitflags;
 
-use crate::error::Result;
 use crate::linux::PathExceptions;
 
 /// Path for mount namespace's new root.
 const NEW_ROOT: &str = "/tmp/birdcage-root";
 
-/// Isolate process using Linux namespaces.
-///
-/// If successful, this will always clear the abstract namespace.
-///
-/// Additionally it will isolate network access if `allow_networking` is
-/// `false`.
-pub(crate) fn create_namespaces(allow_networking: bool, exceptions: PathExceptions) -> Result<()> {
-    // Get EUID/EGID outside of the namespace.
-    let uid = unsafe { libc::geteuid() };
-    let gid = unsafe { libc::getegid() };
-
-    // Setup the network namespace.
-    if !allow_networking {
-        create_user_namespace(0, 0, Namespaces::NETWORK)?;
-    }
-
-    // Isolate filesystem and procfs.
-    create_mount_namespace(exceptions)?;
-
-    // Drop root user mapping and ensure abstract namespace is cleared.
-    create_user_namespace(uid, gid, Namespaces::empty())?;
-
-    Ok(())
-}
-
-/// Create a mount namespace to isolate filesystem access.
+/// Isolate filesystem access in an existing mount namespace.
 ///
 /// This will deny access to any path which isn't part of `bind_mounts`. Allowed
 /// paths are mounted according to their bind mount flags.
-fn create_mount_namespace(exceptions: PathExceptions) -> Result<()> {
-    // Create mount namespace to allow creation of new mounts.
-    create_user_namespace(0, 0, Namespaces::MOUNT)?;
-
+pub(crate) fn setup_mount_namespace(exceptions: PathExceptions) -> io::Result<()> {
     // Get target paths for new and old root.
     let new_root = PathBuf::from(NEW_ROOT);
 
@@ -101,7 +72,7 @@ fn create_mount_namespace(exceptions: PathExceptions) -> Result<()> {
     let new_proc = new_root.join("proc");
     let new_proc_c = CString::new(new_proc.as_os_str().as_bytes()).unwrap();
     fs::create_dir_all(&new_proc)?;
-    bind_mount(&old_proc_c, &new_proc_c).unwrap();
+    bind_mount(&old_proc_c, &new_proc_c)?;
 
     // Pivot root to `new_root`, placing the old root at the same location.
     pivot_root(&new_root_c, &new_root_c)?;
@@ -122,7 +93,7 @@ fn create_mount_namespace(exceptions: PathExceptions) -> Result<()> {
 /// symlink ourselves and it's not possible to mount on top of it anyway. So
 /// here we make sure that symlinks are created if no bind mount was created for
 /// their parent directory.
-fn create_symlinks(new_root: &Path, symlinks: Vec<(PathBuf, PathBuf)>) -> Result<()> {
+fn create_symlinks(new_root: &Path, symlinks: Vec<(PathBuf, PathBuf)>) -> io::Result<()> {
     for (symlink, target) in symlinks {
         // Ignore symlinks if a parent bind mount exists.
         let unrooted_path = symlink.strip_prefix("/").unwrap();
@@ -152,7 +123,7 @@ fn create_symlinks(new_root: &Path, symlinks: Vec<(PathBuf, PathBuf)>) -> Result
 ///
 /// If `src` ends in a file, an empty file with matching permissions will be
 /// created.
-fn copy_tree(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> Result<()> {
+fn copy_tree(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> io::Result<()> {
     let mut dst = dst.as_ref().to_path_buf();
     let mut src_sub = PathBuf::new();
     let src = src.as_ref();
@@ -189,7 +160,7 @@ fn copy_tree(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> Result<()> {
 }
 
 /// Mount a new tmpfs.
-fn mount_tmpfs(dst: &CStr) -> Result<()> {
+fn mount_tmpfs(dst: &CStr) -> io::Result<()> {
     let flags = MountFlags::empty();
     let fstype = CString::new("tmpfs").unwrap();
     let res = unsafe {
@@ -199,12 +170,27 @@ fn mount_tmpfs(dst: &CStr) -> Result<()> {
     if res == 0 {
         Ok(())
     } else {
-        Err(IoError::last_os_error().into())
+        Err(IoError::last_os_error())
+    }
+}
+
+/// Mount a new procfs.
+pub fn mount_proc(dst: &CStr) -> io::Result<()> {
+    let flags = MountFlags::NOSUID | MountFlags::NODEV | MountFlags::NOEXEC;
+    let fstype = CString::new("proc").unwrap();
+    let res = unsafe {
+        libc::mount(fstype.as_ptr(), dst.as_ptr(), fstype.as_ptr(), flags.bits(), ptr::null())
+    };
+
+    if res == 0 {
+        Ok(())
+    } else {
+        Err(IoError::last_os_error())
     }
 }
 
 /// Create a new bind mount.
-fn bind_mount(src: &CStr, dst: &CStr) -> Result<()> {
+fn bind_mount(src: &CStr, dst: &CStr) -> io::Result<()> {
     let flags = MountFlags::BIND | MountFlags::RECURSIVE;
     let res =
         unsafe { libc::mount(src.as_ptr(), dst.as_ptr(), ptr::null(), flags.bits(), ptr::null()) };
@@ -212,12 +198,12 @@ fn bind_mount(src: &CStr, dst: &CStr) -> Result<()> {
     if res == 0 {
         Ok(())
     } else {
-        Err(IoError::last_os_error().into())
+        Err(IoError::last_os_error())
     }
 }
 
 /// Remount an existing bind mount with a new set of mount flags.
-fn update_mount_flags(mount: &CStr, flags: MountAttrFlags) -> Result<()> {
+fn update_mount_flags(mount: &CStr, flags: MountAttrFlags) -> io::Result<()> {
     let attrs = MountAttr { attr_set: flags.bits(), ..Default::default() };
 
     let res = unsafe {
@@ -234,12 +220,12 @@ fn update_mount_flags(mount: &CStr, flags: MountAttrFlags) -> Result<()> {
     if res == 0 {
         Ok(())
     } else {
-        Err(IoError::last_os_error().into())
+        Err(IoError::last_os_error())
     }
 }
 
 /// Recursively update the root to deny mount propagation.
-fn deny_mount_propagation() -> Result<()> {
+fn deny_mount_propagation() -> io::Result<()> {
     let flags = MountFlags::PRIVATE | MountFlags::RECURSIVE;
     let root = CString::new("/").unwrap();
     let res =
@@ -248,14 +234,14 @@ fn deny_mount_propagation() -> Result<()> {
     if res == 0 {
         Ok(())
     } else {
-        Err(IoError::last_os_error().into())
+        Err(IoError::last_os_error())
     }
 }
 
 /// Change root directory to `new_root` and mount the old root in `put_old`.
 ///
 /// The `put_old` directory must be at or undearneath `new_root`.
-fn pivot_root(new_root: &CStr, put_old: &CStr) -> Result<()> {
+fn pivot_root(new_root: &CStr, put_old: &CStr) -> io::Result<()> {
     // Get target working directory path.
     let working_dir = env::current_dir().unwrap_or_else(|_| PathBuf::from("/"));
 
@@ -263,7 +249,7 @@ fn pivot_root(new_root: &CStr, put_old: &CStr) -> Result<()> {
         unsafe { libc::syscall(libc::SYS_pivot_root, new_root.as_ptr(), put_old.as_ptr()) };
 
     if result != 0 {
-        return Err(IoError::last_os_error().into());
+        return Err(IoError::last_os_error());
     }
 
     // Attempt to recover working directory, or switch to root.
@@ -278,12 +264,12 @@ fn pivot_root(new_root: &CStr, put_old: &CStr) -> Result<()> {
 }
 
 /// Unmount a filesystem.
-fn umount(target: &CStr) -> Result<()> {
+fn umount(target: &CStr) -> io::Result<()> {
     let result = unsafe { libc::umount2(target.as_ptr(), libc::MNT_DETACH) };
 
     match result {
         0 => Ok(()),
-        _ => Err(IoError::last_os_error().into()),
+        _ => Err(IoError::last_os_error()),
     }
 }
 
@@ -291,11 +277,11 @@ fn umount(target: &CStr) -> Result<()> {
 ///
 /// The parent and child UIDs and GIDs define the user and group mappings
 /// between the parent namespace and the new user namespace.
-fn create_user_namespace(
+pub fn create_user_namespace(
     child_uid: u32,
     child_gid: u32,
     extra_namespaces: Namespaces,
-) -> Result<()> {
+) -> io::Result<()> {
     // Get current user's EUID and EGID.
     let parent_uid = unsafe { libc::geteuid() };
     let parent_gid = unsafe { libc::getegid() };
@@ -314,11 +300,11 @@ fn create_user_namespace(
 }
 
 /// Enter a namespace.
-fn unshare(namespaces: Namespaces) -> Result<()> {
+fn unshare(namespaces: Namespaces) -> io::Result<()> {
     let result = unsafe { libc::unshare(namespaces.bits()) };
     match result {
         0 => Ok(()),
-        _ => Err(IoError::last_os_error().into()),
+        _ => Err(IoError::last_os_error()),
     }
 }
 
@@ -326,6 +312,12 @@ bitflags! {
     /// Mount syscall flags.
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub struct MountFlags: libc::c_ulong {
+        /// Ignore suid and sgid bits.
+        const NOSUID = libc::MS_NOSUID;
+        /// Disallow access to device special files.
+        const NODEV = libc::MS_NODEV;
+        /// Disallow program execution.
+        const NOEXEC = libc::MS_NOEXEC;
         /// Create a bind mount.
         const BIND = libc::MS_BIND;
         /// Used in conjuction with [`Self::BIND`] to create a recursive bind mount, and
@@ -384,7 +376,7 @@ bitflags! {
 bitflags! {
     /// Unshare system call namespace flags.
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-    struct Namespaces: libc::c_int {
+    pub struct Namespaces: libc::c_int {
         /// Unshare the file descriptor table, so that the calling process no longer
         /// shares its file descriptors with any other process.
         const FILES = libc::CLONE_FILES;

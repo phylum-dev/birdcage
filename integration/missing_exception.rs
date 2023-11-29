@@ -3,11 +3,13 @@ use std::path::PathBuf;
 use birdcage::error::Error;
 use birdcage::{Birdcage, Exception, Sandbox};
 
-fn main() {
-    let mut birdcage = Birdcage::new();
+use crate::TestSetup;
+
+pub fn setup() -> TestSetup {
+    let mut sandbox = Birdcage::new();
 
     // Add a path that doesn't exist.
-    let result = birdcage.add_exception(Exception::Read("/does/not/exist".into()));
+    let result = sandbox.add_exception(Exception::Read("/does/not/exist".into()));
 
     // Ensure it is appropriately reported that exception was NOT added.
     match result {
@@ -15,6 +17,9 @@ fn main() {
         _ => panic!("expected path error"),
     }
 
+    TestSetup { sandbox, data: String::new() }
+}
+
+pub fn validate(_data: String) {
     // Ensure locking is always successful.
-    birdcage.lock().unwrap();
 }

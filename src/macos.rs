@@ -6,6 +6,7 @@ use std::collections::HashMap;
 use std::ffi::{CStr, CString};
 use std::io::{Result as IoResult, Write};
 use std::path::{Path, PathBuf};
+use std::process::{Child, Command};
 use std::{fs, ptr};
 
 use bitflags::bitflags;
@@ -65,7 +66,7 @@ impl Sandbox for MacSandbox {
         Ok(self)
     }
 
-    fn lock(self) -> Result<()> {
+    fn spawn(self, mut sandboxee: Command) -> Result<Child> {
         // Remove environment variables.
         if !self.full_env {
             crate::restrict_env_variables(&self.env_exceptions);
@@ -80,7 +81,7 @@ impl Sandbox for MacSandbox {
         let result = unsafe { sandbox_init(profile.as_ptr(), 0, &mut error) };
 
         if result == 0 {
-            Ok(())
+            Ok(sandboxee.spawn()?)
         } else {
             unsafe {
                 let error_text = CStr::from_ptr(error)
