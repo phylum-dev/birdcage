@@ -4,7 +4,6 @@ use std::path::PathBuf;
 
 use birdcage::{Birdcage, Exception, Sandbox};
 use serde::{Deserialize, Serialize};
-use tempfile::TempDir;
 
 use crate::TestSetup;
 
@@ -15,9 +14,8 @@ struct TestData {
     symlink_src: PathBuf,
 }
 
-pub fn setup() -> TestSetup {
+pub fn setup(tempdir: PathBuf) -> TestSetup {
     // Setup our test directories.
-    let tempdir = TempDir::new().unwrap().into_path();
     let symlink_src = tempdir.join("src");
     fs::create_dir(&symlink_src).unwrap();
     let symlink_dst = tempdir.join("dst");

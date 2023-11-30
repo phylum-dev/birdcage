@@ -12,9 +12,8 @@ struct TestData {
     symlink_dir_exec: PathBuf,
 }
 
-pub fn setup() -> TestSetup {
+pub fn setup(tempdir: PathBuf) -> TestSetup {
     // Create symlinked executable dir.
-    let tempdir = tempfile::tempdir().unwrap().into_path();
     let symlink_dir = tempdir.join("bin");
     let symlink_dir_exec = symlink_dir.join("true");
     unixfs::symlink("/usr/bin", &symlink_dir).unwrap();

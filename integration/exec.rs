@@ -1,3 +1,4 @@
+use std::path::PathBuf;
 use std::fs;
 use std::process::Command;
 
@@ -5,7 +6,7 @@ use birdcage::{Birdcage, Exception, Sandbox};
 
 use crate::TestSetup;
 
-pub fn setup() -> TestSetup {
+pub fn setup(_tempdir: PathBuf) -> TestSetup {
     let mut sandbox = Birdcage::new();
     sandbox.add_exception(Exception::ExecuteAndRead("/usr/bin/true".into())).unwrap();
 

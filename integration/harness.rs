@@ -1,3 +1,4 @@
+use std::path::PathBuf;
 use std::process::{self, Command, Stdio};
 
 use birdcage::{Birdcage, Exception, Sandbox};
@@ -57,9 +58,13 @@ fn main() {
     };
 
     // Run setup or test validation.
-    match args.next() {
-        Some(test_data) => test.2(test_data),
-        None => run_setup(&test_name, &test.1),
+    let arg = args.next().unwrap();
+    match arg.as_str() {
+        "--setup" => {
+            let tempdir = args.next().unwrap();
+            run_setup(&test_name, tempdir, &test.1);
+        },
+        _ => test.2(arg),
     }
 }
 
@@ -71,18 +76,22 @@ fn spawn_tests() {
 
     // Spawn child processes for all tests.
     let current_exe = std::env::current_exe().unwrap();
-    let children: Vec<_> = TESTS
-        .iter()
-        .map(|(cmd, ..)| {
-            let child =
-                Command::new(&current_exe).args([cmd]).stderr(Stdio::piped()).spawn().unwrap();
-            (cmd, child)
-        })
-        .collect();
+    let mut children = Vec::new();
+    for (cmd, ..) in TESTS {
+        let tempdir = tempfile::tempdir().unwrap();
+        let child = Command::new(&current_exe)
+            .arg(cmd)
+            .arg("--setup")
+            .arg(tempdir.path())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap();
+        children.push((cmd, child, tempdir));
+    }
 
     // Check results for each test.
     let mut passed = 0;
-    for (name, child) in children {
+    for (name, child, tempdir) in children {
         let output = match child.wait_with_output() {
             Ok(output) => output,
             Err(err) => {
@@ -104,6 +113,9 @@ fn spawn_tests() {
             eprintln!("test {TEST_DIR}/{name}.rs ... \x1b[32mok\x1b[0m");
             passed += 1;
         }
+
+        // Cleanup tempdir.
+        tempdir.close().unwrap();
     }
 
     // Print total results.
@@ -118,9 +130,9 @@ fn spawn_tests() {
 }
 
 /// Run test's setup step and spawn validation child.
-fn run_setup(test_name: &str, setup: &fn() -> TestSetup) {
+fn run_setup(test_name: &str, tempdir: String, setup: &fn(PathBuf) -> TestSetup) {
     // Run test setup.
-    let mut test_setup = setup();
+    let mut test_setup = setup(PathBuf::from(tempdir));
 
     // Add exceptions to allow self-execution.
     let current_exe = std::env::current_exe().unwrap();
@@ -150,7 +162,7 @@ macro_rules! test_mods {
             mod $mod;
         )*
 
-        const TESTS: &[(&str, fn() -> $crate::TestSetup, fn(String))] = &[$(
+        const TESTS: &[(&str, fn(std::path::PathBuf) -> $crate::TestSetup, fn(String))] = &[$(
             $( #[$cfg] )?
             (stringify!($mod), $mod :: setup, $mod :: validate),
         )*];

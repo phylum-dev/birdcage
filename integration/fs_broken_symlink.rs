@@ -1,11 +1,10 @@
-use std::fs;
+use std::fs::{self, File};
 use std::os::unix::fs as unixfs;
 use std::path::PathBuf;
 
 use birdcage::error::Error;
 use birdcage::{Birdcage, Exception, Sandbox};
 use serde::{Deserialize, Serialize};
-use tempfile::NamedTempFile;
 
 use crate::TestSetup;
 
@@ -14,14 +13,18 @@ struct TestData {
     symlink: PathBuf,
 }
 
-pub fn setup() -> TestSetup {
-    // Setup a symlink without target.
-    let tempfile = NamedTempFile::new().unwrap();
-    let tempfile_path = tempfile.path().to_path_buf();
-    let symlink_str = tempfile_path.to_string_lossy() + "_tmpfile";
+pub fn setup(tempdir: PathBuf) -> TestSetup {
+    // Create a target for the symlink.
+    let tempfile_path = tempdir.join("broken_target");
+    File::create(&tempfile_path).unwrap();
+
+    // Setup a symlink to the target file.
+    let symlink_str = tempfile_path.to_string_lossy() + "_symlink";
     let symlink = PathBuf::from(symlink_str.as_ref());
-    unixfs::symlink(&tempfile, &symlink).unwrap();
-    drop(tempfile);
+    unixfs::symlink(&tempfile_path, &symlink).unwrap();
+
+    // Remove the target, breaking the symlink.
+    fs::remove_file(&tempfile_path).unwrap();
     assert!(!tempfile_path.exists());
 
     // Sandbox exception fails with invalid path error.

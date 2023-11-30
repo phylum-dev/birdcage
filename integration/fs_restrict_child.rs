@@ -14,9 +14,8 @@ struct TestData {
     tempdir: PathBuf,
 }
 
-pub fn setup() -> TestSetup {
+pub fn setup(tempdir: PathBuf) -> TestSetup {
     // Setup our test tree.
-    let tempdir = tempfile::tempdir().unwrap().into_path();
     let tempfile = tempdir.join("target-file");
     fs::write(&tempfile, FILE_CONTENT.as_bytes()).unwrap();
 

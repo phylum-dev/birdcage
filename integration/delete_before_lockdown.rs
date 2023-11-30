@@ -1,10 +1,11 @@
+use std::path::PathBuf;
 
 use birdcage::{Birdcage, Exception, Sandbox};
 use tempfile::NamedTempFile;
 
 use crate::TestSetup;
 
-pub fn setup() -> TestSetup {
+pub fn setup(_tempdir: PathBuf) -> TestSetup {
     // Create temporary file.
     let tempfile = NamedTempFile::new().unwrap();
 

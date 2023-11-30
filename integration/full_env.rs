@@ -1,10 +1,11 @@
+use std::path::PathBuf;
 use std::env;
 
 use birdcage::{Birdcage, Exception, Sandbox};
 
 use crate::TestSetup;
 
-pub fn setup() -> TestSetup {
+pub fn setup(_tempdir: PathBuf) -> TestSetup {
     // Setup our environment variables
     env::set_var("PUBLIC", "GOOD");
 
