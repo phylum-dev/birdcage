@@ -1,10 +1,11 @@
+use std::path::PathBuf;
 use std::fs;
 
 use birdcage::{Birdcage, Exception, Sandbox};
 
 use crate::TestSetup;
 
-pub fn setup() -> TestSetup {
+pub fn setup(_tempdir: PathBuf) -> TestSetup {
     // Activate our sandbox.
     let mut sandbox = Birdcage::new();
     sandbox.add_exception(Exception::WriteAndRead("/dev/null".into())).unwrap();

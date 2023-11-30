@@ -5,7 +5,6 @@ use std::{env, fs};
 
 use birdcage::{Birdcage, Sandbox};
 use serde::{Deserialize, Serialize};
-use tempfile::NamedTempFile;
 
 use crate::TestSetup;
 
@@ -14,11 +13,11 @@ struct TestData {
     path: PathBuf,
 }
 
-pub fn setup() -> TestSetup {
+pub fn setup(tempdir: PathBuf) -> TestSetup {
     const FILE_CONTENT: &str = "expected content";
 
     // Create testfile.
-    let path = NamedTempFile::new().unwrap().into_temp_path().keep().unwrap();
+    let path = tempdir.join("full_sandbox");
 
     // Ensure non-sandboxed write works.
     fs::write(&path, FILE_CONTENT.as_bytes()).unwrap();

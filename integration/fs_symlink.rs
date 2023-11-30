@@ -4,7 +4,6 @@ use std::path::PathBuf;
 
 use birdcage::{Birdcage, Exception, Sandbox};
 use serde::{Deserialize, Serialize};
-use tempfile::NamedTempFile;
 
 use crate::TestSetup;
 
@@ -16,11 +15,11 @@ struct TestData {
     public: PathBuf,
 }
 
-pub fn setup() -> TestSetup {
+pub fn setup(tempdir: PathBuf) -> TestSetup {
     // Setup our test files.
-    let private_path = NamedTempFile::new().unwrap().into_temp_path().keep().unwrap();
+    let private_path = tempdir.join("private");
     fs::write(&private_path, FILE_CONTENT.as_bytes()).unwrap();
-    let public_path = NamedTempFile::new().unwrap().into_temp_path().keep().unwrap();
+    let public_path = tempdir.join("public");
     fs::write(&public_path, FILE_CONTENT.as_bytes()).unwrap();
 
     // Create symlinks for the files.

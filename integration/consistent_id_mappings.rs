@@ -1,3 +1,4 @@
+use std::path::PathBuf;
 use birdcage::{Birdcage, Sandbox};
 use serde::{Deserialize, Serialize};
 
@@ -11,7 +12,7 @@ struct TestData {
     egid: u32,
 }
 
-pub fn setup() -> TestSetup {
+pub fn setup(_tempdir: PathBuf) -> TestSetup {
     let uid = unsafe { libc::getuid() };
     let gid = unsafe { libc::getgid() };
     let euid = unsafe { libc::geteuid() };

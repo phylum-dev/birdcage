@@ -13,9 +13,8 @@ struct TestData {
     symlink_exec: PathBuf,
 }
 
-pub fn setup() -> TestSetup {
+pub fn setup(tempdir: PathBuf) -> TestSetup {
     // Create symlinked executable.
-    let tempdir = tempfile::tempdir().unwrap().into_path();
     let exec_dir = tempdir.join("bin");
     fs::create_dir(&exec_dir).unwrap();
     let symlink_exec = exec_dir.join("true");

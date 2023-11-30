@@ -3,7 +3,6 @@ use std::path::PathBuf;
 
 use birdcage::{Birdcage, Exception, Sandbox};
 use serde::{Deserialize, Serialize};
-use tempfile::NamedTempFile;
 
 use crate::TestSetup;
 
@@ -14,9 +13,9 @@ struct TestData {
     file: PathBuf,
 }
 
-pub fn setup() -> TestSetup {
+pub fn setup(tempdir: PathBuf) -> TestSetup {
     // Setup the test file.
-    let file = NamedTempFile::new().unwrap().into_temp_path().keep().unwrap();
+    let file = tempdir.join("fs_readonly");
     fs::write(&file, FILE_CONTENT.as_bytes()).unwrap();
 
     // Activate our sandbox.

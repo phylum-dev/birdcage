@@ -1,10 +1,11 @@
+use std::path::PathBuf;
 use std::ffi::CString;
 
 use birdcage::{Birdcage, Sandbox};
 
 use crate::TestSetup;
 
-pub fn setup() -> TestSetup {
+pub fn setup(_tempdir: PathBuf) -> TestSetup {
     TestSetup { sandbox: Birdcage::new(), data: String::new() }
 }
 
