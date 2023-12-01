@@ -6,6 +6,17 @@ The sections should follow the order `Packaging`, `Added`, `Changed`, `Fixed` an
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.7.0] - 2023-11-30
+
+### Added
+
+- (Linux) PID namespace support
+
+### Fixed
+
+- (Linux) Sandbox lockdown failing when deleting file after adding exception
+- (Linux) Environment variables accessible through procfs interface
+
 ## [0.6.0] - 2023-11-16
 
 ### Fixed
@@ -13,8 +24,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - (Linux) Sandbox exceptions for symbolic links
 - (macOS) Modifying exceptions for paths affected by existing exceptions
 - (Linux) Symlink/Canonical path's exceptions overriding each other
-- (Linux) PID namespace support
-- (Linux) Sandbox lockdown failing when deleting file after adding exception
 
 ## [v0.5.0] - 2023-10-13
 
