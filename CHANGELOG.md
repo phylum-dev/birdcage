@@ -6,6 +6,12 @@ The sections should follow the order `Packaging`, `Added`, `Changed`, `Fixed` an
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.7.1] - 2024-02-07
+
+### Changed
+
+- (Linux) Improved error message with unsupported Kernel versions
+
 ## [0.7.0] - 2023-11-30
 
 ### Added
