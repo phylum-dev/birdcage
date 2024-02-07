@@ -3,6 +3,8 @@
 use std::error::Error as StdError;
 use std::fmt::{self, Display, Formatter};
 use std::io::Error as IoError;
+#[cfg(target_os = "linux")]
+use std::io::ErrorKind as IoErrorKind;
 use std::path::PathBuf;
 use std::result::Result as StdResult;
 
@@ -37,6 +39,13 @@ impl Display for Error {
             #[cfg(target_os = "linux")]
             Self::Seccomp(error) => write!(f, "seccomp error: {error}"),
             Self::InvalidPath(path) => write!(f, "invalid path: {path:?}"),
+            #[cfg(target_os = "linux")]
+            Self::Io(error) if error.kind() == IoErrorKind::Unsupported => {
+                write!(
+                    f,
+                    "unsupported operation, please ensure Kernel version is at least 5.12: {error}"
+                )
+            },
             Self::Io(error) => write!(f, "input/output error: {error}"),
             Self::ActivationFailed(error) => {
                 write!(f, "failed to initialize a sufficient sandbox: {error}")
