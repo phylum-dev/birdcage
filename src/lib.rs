@@ -7,8 +7,8 @@
 //!
 //! ```rust
 //! use std::fs;
-//! use std::process::Command;
 //!
+//! use birdcage::process::Command;
 //! use birdcage::{Birdcage, Exception, Sandbox};
 //!
 //! // Reads without sandbox work.
@@ -32,19 +32,20 @@
 
 use std::env;
 use std::path::PathBuf;
-use std::process::{Child, Command};
 
 use crate::error::Result;
 #[cfg(target_os = "linux")]
 use crate::linux::LinuxSandbox;
 #[cfg(target_os = "macos")]
 use crate::macos::MacSandbox;
+use crate::process::{Child, Command};
 
 pub mod error;
 #[cfg(target_os = "linux")]
 mod linux;
 #[cfg(target_os = "macos")]
 mod macos;
+pub mod process;
 
 /// Default platform sandbox.
 ///

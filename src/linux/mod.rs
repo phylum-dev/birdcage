@@ -3,16 +3,20 @@
 use std::collections::HashMap;
 use std::ffi::CString;
 use std::io::{Error as IoError, ErrorKind as IoErrorKind};
+use std::os::fd::{BorrowedFd, OwnedFd};
 use std::os::unix::ffi::OsStrExt;
-use std::os::unix::process::CommandExt;
 use std::path::{Component, Path, PathBuf};
-use std::process::{Child, Command};
-use std::{env, fs, io};
+use std::{env, io, ptr};
+
+use rustix::pipe::pipe;
+use rustix::process::{Gid, Pid, Uid, WaitOptions};
+use rustix::stdio;
 
 use crate::error::{Error, Result};
 use crate::linux::namespaces::{MountAttrFlags, Namespaces};
 use crate::linux::seccomp::SyscallFilter;
-use crate::{Exception, Sandbox};
+use crate::process::StdioType;
+use crate::{Child, Command, Exception, Sandbox};
 
 mod namespaces;
 mod seccomp;
@@ -44,61 +48,119 @@ impl Sandbox for LinuxSandbox {
         Ok(self)
     }
 
-    fn spawn(self, mut sandboxee: Command) -> Result<Child> {
-        // Ensure calling process is not multi-threaded.
-        assert!(
-            thread_count().unwrap_or(0) == 1,
-            "`Sandbox::spawn` must be called from a single-threaded process"
-        );
+    fn spawn(self, sandboxee: Command) -> Result<Child> {
+        // Create pipes to hook up init's stdio.
+        let (stdin_rx, stdin_tx) = pipe().map_err(IoError::from)?;
+        let (stdout_rx, stdout_tx) = pipe().map_err(IoError::from)?;
+        let (stderr_rx, stderr_tx) = pipe().map_err(IoError::from)?;
+        let (exit_signal_rx, exit_signal_tx) = pipe().map_err(IoError::from)?;
 
-        // Remove environment variables.
-        if !self.full_env {
-            crate::restrict_env_variables(&self.env_exceptions);
-        }
+        // Connect pipes and return FDs which need to be read manually.
+        let stdin_tx = connect_pipe(sandboxee.stdin.ty, stdin_tx, stdio::stdin())?;
+        let stdout_rx = connect_pipe(sandboxee.stdout.ty, stdout_rx, stdio::stdout())?;
+        let stderr_rx = connect_pipe(sandboxee.stderr.ty, stderr_rx, stdio::stderr())?;
 
-        // Get EUID/EGID outside of the namespaces.
-        let uid = unsafe { libc::geteuid() };
-        let gid = unsafe { libc::getegid() };
+        // Spawn isolated sandbox PID 1.
+        let allow_networking = self.allow_networking;
+        let init_arg =
+            ProcessInitArg::new(self, sandboxee, exit_signal_tx, stdin_rx, stdout_tx, stderr_tx);
+        let init_pid = spawn_sandbox_init(init_arg, allow_networking)?;
 
-        // Setup PID namespace.
-        //
-        // Create a new PID namespace before spawning the child to make it PID 1. The
-        // mount namespace is required to create `/proc` after process creation.
-        namespaces::create_user_namespace(0, 0, Namespaces::PID | Namespaces::MOUNT)?;
-
-        // Isolate filesystem using a mount namespace.
-        namespaces::setup_mount_namespace(self.path_exceptions)?;
-
-        // Spawn the sandboxee.
-        //
-        // We make use of `pre_exec` to create the remaining resource restrictions which
-        // must be setup in the sandboxee's process context.
-        let child = unsafe {
-            sandboxee.pre_exec(move || post_fork(uid, gid, self.allow_networking)).spawn()?
-        };
+        let child = Child::new(init_pid, exit_signal_rx, stdin_tx, stdout_rx, stderr_rx)?;
 
         Ok(child)
     }
 }
 
-// NOTE: Since this new process is PID 1, it will be responsible for reaping all
-// orphans. We currently do not create a reaper for these and instead leak
-// zombies, relying on the spawned process being short-lived and not spawning a
-// lot of children.
-//
-/// Sandboxing steps executed in the new process' context.
-fn post_fork(uid: u32, gid: u32, allow_networking: bool) -> io::Result<()> {
-    // Create new procfs directory.
-    let new_proc_c = CString::new("/proc").unwrap();
-    namespaces::mount_proc(&new_proc_c)?;
+/// Create sandbox child process.
+///
+/// This function uses `clone` to setup the sandbox's init process with user
+/// namespace isolations in place.
+///
+/// Returns PID of the child process if successful.
+fn spawn_sandbox_init(init_arg: ProcessInitArg, allow_networking: bool) -> Result<i32> {
+    unsafe {
+        // Initialize child process stack memory.
+        let stack_size = 1024 * 1024;
+        let child_stack = libc::mmap(
+            ptr::null_mut(),
+            stack_size,
+            libc::PROT_READ | libc::PROT_WRITE,
+            libc::MAP_PRIVATE | libc::MAP_ANONYMOUS | libc::MAP_STACK,
+            -1,
+            0,
+        );
+        if child_stack == libc::MAP_FAILED {
+            return Err(IoError::last_os_error().into());
+        }
 
-    // Isolate networking using a network namespace.
-    if !allow_networking {
-        namespaces::create_user_namespace(0, 0, Namespaces::NETWORK)?;
+        // Stack grows downward on all relevant Linux processors.
+        let stack_top = child_stack.add(stack_size);
+
+        // Construct clone flags with required namespaces.
+        let mut flags =
+            libc::CLONE_NEWIPC | libc::CLONE_NEWNS | libc::CLONE_NEWPID | libc::CLONE_NEWUSER;
+        if !allow_networking {
+            flags |= libc::CLONE_NEWNET;
+        }
+
+        // Spawn sandbox init process.
+        let init_arg_raw = Box::into_raw(Box::new(init_arg)) as _;
+        let init_pid = libc::clone(sandbox_init, stack_top, flags | libc::SIGCHLD, init_arg_raw);
+        if init_pid == -1 {
+            Err(IoError::last_os_error().into())
+        } else {
+            Ok(init_pid)
+        }
+    }
+}
+
+/// PID 1 inside the sandbox.
+///
+/// This function is the entry point for the process which is used to launch the
+/// sandboxee and act as init system for the PID namespace.
+extern "C" fn sandbox_init(arg: *mut libc::c_void) -> libc::c_int {
+    let init_arg: Box<ProcessInitArg> = unsafe { Box::from_raw(arg as _) };
+
+    match sandbox_init_inner(*init_arg) {
+        Ok(exit_code) => exit_code,
+        Err(err) => {
+            eprintln!("sandboxing failure: {err}");
+            1
+        },
+    }
+}
+
+/// PID 1 inside the sandbox.
+///
+/// Wrapper to simplify error handling.
+fn sandbox_init_inner(mut init_arg: ProcessInitArg) -> io::Result<libc::c_int> {
+    // Hook up stdio to parent process.
+    rustix::io::dup2(stdio::stdin(), &mut init_arg.stdin)?;
+    rustix::io::dup2(stdio::stdout(), &mut init_arg.stdout)?;
+    rustix::io::dup2(stdio::stderr(), &mut init_arg.stderr)?;
+
+    // Map root UID and GID.
+    namespaces::map_ids(init_arg.parent_euid.as_raw(), init_arg.parent_egid.as_raw(), 0, 0)?;
+
+    // Remove environment variables.
+    if !init_arg.full_env {
+        crate::restrict_env_variables(&init_arg.env_exceptions);
     }
 
-    // Drop root user mapping and ensure abstract namespace is cleared.
-    namespaces::create_user_namespace(uid, gid, Namespaces::empty())?;
+    // Isolate filesystem using a mount namespace.
+    namespaces::setup_mount_namespace(init_arg.path_exceptions)?;
+
+    // Create new procfs directory.
+    let new_proc_c = CString::new("/proc")?;
+    namespaces::mount_proc(&new_proc_c)?;
+
+    // Drop root user mapping.
+    namespaces::create_user_namespace(
+        init_arg.parent_euid.as_raw(),
+        init_arg.parent_egid.as_raw(),
+        Namespaces::empty(),
+    )?;
 
     // Setup system call filters.
     SyscallFilter::apply().map_err(|err| IoError::new(IoErrorKind::Other, err))?;
@@ -107,9 +169,75 @@ fn post_fork(uid: u32, gid: u32, allow_networking: bool) -> io::Result<()> {
     //
     // This is also blocked by our bind mount's MS_NOSUID flag, so we're just
     // doubling-down here.
-    no_new_privs()?;
+    rustix::thread::set_no_new_privs(true)?;
 
-    Ok(())
+    // Spawn sandboxed process.
+    let mut std_command = std::process::Command::from(init_arg.sandboxee);
+    let child = std_command.spawn()?;
+
+    // Reap zombie children.
+    let child_pid = Pid::from_raw(child.id() as i32);
+    loop {
+        // Wait for any child to exit.
+        match rustix::process::wait(WaitOptions::empty())? {
+            Some((pid, status)) if Some(pid) == child_pid => match status.terminating_signal() {
+                Some(signal) => {
+                    // Send exit signal to parent.
+                    rustix::io::write(init_arg.exit_signal, &signal.to_le_bytes())?;
+                    return Ok(1);
+                },
+                None => return Ok(status.exit_status().unwrap_or(1) as i32),
+            },
+            Some(_) => (),
+            None => unreachable!("none without nohang"),
+        }
+    }
+}
+
+/// Init process argument passed to `clone`.
+struct ProcessInitArg {
+    env_exceptions: Vec<String>,
+    path_exceptions: PathExceptions,
+    full_env: bool,
+
+    sandboxee: Command,
+
+    parent_euid: Uid,
+    parent_egid: Gid,
+
+    exit_signal: OwnedFd,
+
+    stdin: OwnedFd,
+    stdout: OwnedFd,
+    stderr: OwnedFd,
+}
+
+impl ProcessInitArg {
+    fn new(
+        sandbox: LinuxSandbox,
+        sandboxee: Command,
+        exit_signal: OwnedFd,
+        stdin: OwnedFd,
+        stdout: OwnedFd,
+        stderr: OwnedFd,
+    ) -> Self {
+        // Get EUID/EGID outside of the namespaces.
+        let parent_euid = rustix::process::geteuid();
+        let parent_egid = rustix::process::getegid();
+
+        Self {
+            parent_euid,
+            parent_egid,
+            exit_signal,
+            sandboxee,
+            stdout,
+            stderr,
+            stdin,
+            path_exceptions: sandbox.path_exceptions,
+            env_exceptions: sandbox.env_exceptions,
+            full_env: sandbox.full_env,
+        }
+    }
 }
 
 /// Path permissions required for the sandbox.
@@ -164,16 +292,6 @@ impl PathExceptions {
         }
 
         Ok(())
-    }
-}
-
-/// Prevent suid/sgid.
-fn no_new_privs() -> io::Result<()> {
-    let result = unsafe { libc::prctl(libc::PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) };
-
-    match result {
-        0 => Ok(()),
-        _ => Err(IoError::last_os_error()),
     }
 }
 
@@ -249,23 +367,21 @@ fn path_has_symlinks(path: &Path) -> bool {
     path.ancestors().any(|path| path.read_link().is_ok())
 }
 
-/// Get the number of threads used by the current process.
-fn thread_count() -> io::Result<usize> {
-    // Read process status from procfs.
-    let status = fs::read_to_string("/proc/self/status")?;
-
-    // Parse procfs output.
-    let (_, threads_start) = status.split_once("Threads:").ok_or_else(|| {
-        io::Error::new(io::ErrorKind::InvalidData, "/proc/self/status missing \"Threads:\"")
-    })?;
-    let thread_count = threads_start.split_whitespace().next().ok_or_else(|| {
-        io::Error::new(io::ErrorKind::InvalidData, "/proc/self/status output malformed")
-    })?;
-
-    // Convert to number.
-    let thread_count = thread_count
-        .parse::<usize>()
-        .map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err))?;
-
-    Ok(thread_count)
+/// Connect pipe end to its corresponding file descriptor.
+///
+/// This will return `Some(OwnedFd)` for [`StdioType::Piped`] and `None`
+/// otherwise.
+fn connect_pipe(
+    ty: StdioType,
+    mut pipe_fd: OwnedFd,
+    fd: BorrowedFd<'static>,
+) -> io::Result<Option<OwnedFd>> {
+    match ty {
+        StdioType::Piped => Ok(Some(pipe_fd)),
+        StdioType::Inherit => {
+            rustix::io::dup2(fd, &mut pipe_fd)?;
+            Ok(None)
+        },
+        StdioType::Null => Ok(None),
+    }
 }
