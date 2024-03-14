@@ -6,13 +6,12 @@ use std::collections::HashMap;
 use std::ffi::{CStr, CString};
 use std::io::{Result as IoResult, Write};
 use std::path::{Path, PathBuf};
-use std::process::{Child, Command};
 use std::{fs, ptr};
 
 use bitflags::bitflags;
 
 use crate::error::{Error, Result};
-use crate::{Exception, Sandbox};
+use crate::{Child, Command, Exception, Sandbox};
 
 /// Deny-all fallback rule.
 static DEFAULT_RULE: &[u8] = b"\
