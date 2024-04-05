@@ -4,11 +4,19 @@ use std::os::unix::process::ExitStatusExt;
 use birdcage::process::{Command, Stdio};
 use birdcage::{Birdcage, Exception, Sandbox};
 
+// macOs uses `std::process` and thus does not require explicit testing. This
+// allows running multiple tests in the same process rather than having to add
+// multiple integeration tests.
+#[cfg(not(target_os = "linux"))]
+fn main() {}
+
+#[cfg(target_os = "linux")]
 fn main() {
     pipe_stdin_to_stdout();
     exit_signal();
 }
 
+#[cfg(target_os = "linux")]
 fn pipe_stdin_to_stdout() {
     // Setup echo-back command.
     let mut cmd = Command::new("cat");
@@ -30,6 +38,7 @@ fn pipe_stdin_to_stdout() {
     assert_eq!(&output.stdout, expected);
 }
 
+#[cfg(target_os = "linux")]
 fn exit_signal() {
     // Setup echo-back command.
     let cmd = Command::new("cat");
