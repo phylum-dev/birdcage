@@ -69,15 +69,32 @@ impl Sandbox for LinuxSandbox {
             stdout_pipe,
             stderr_pipe,
         );
-        let mut init_arg = spawn_sandbox_init(init_arg, allow_networking)?;
+        let init_arg = spawn_sandbox_init(init_arg, allow_networking)?;
 
         // Deconstruct init args, dropping unused FDs.
-        let pid = init_arg.pid;
-        let stdin_tx = init_arg.stdin_tx.take();
-        let stdout_rx = init_arg.stdout_rx.take();
-        let stderr_rx = init_arg.stderr_rx.take();
-        let exit_signal_rx = init_arg.exit_signal_rx.take().unwrap();
-        drop(init_arg);
+        let (pid, stdin_tx, stdout_rx, stderr_rx, exit_signal_rx) = {
+            let ProcessInitArg {
+                // Extract used fields.
+                pid,
+                stdin_tx,
+                stdout_rx,
+                stderr_rx,
+                exit_signal_rx,
+
+                // Deconstruct all remaining fields to manually drop them.
+                path_exceptions: _x0,
+                exit_signal_tx: _x1,
+                env_exceptions: _x2,
+                parent_euid: _x3,
+                parent_egid: _x4,
+                stdout_tx: _x5,
+                stderr_tx: _x6,
+                sandboxee: _x7,
+                full_env: _x8,
+                stdin_rx: _x9,
+            } = init_arg;
+            (pid, stdin_tx, stdout_rx, stderr_rx, exit_signal_rx)
+        };
 
         let child = Child::new(pid, exit_signal_rx, stdin_tx, stdout_rx, stderr_rx)?;
 
@@ -242,7 +259,7 @@ struct ProcessInitArg {
     stdin_tx: Option<OwnedFd>,
     stdout_rx: Option<OwnedFd>,
     stderr_rx: Option<OwnedFd>,
-    exit_signal_rx: Option<OwnedFd>,
+    exit_signal_rx: OwnedFd,
 
     pid: i32,
 }
@@ -274,7 +291,7 @@ impl ProcessInitArg {
             stdin_tx: stdin.1,
             stdout_rx: stdout.0,
             stderr_rx: stderr.0,
-            exit_signal_rx: Some(exit_signal.0),
+            exit_signal_rx: exit_signal.0,
             pid: -1,
         }
     }
