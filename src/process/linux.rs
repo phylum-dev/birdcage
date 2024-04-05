@@ -8,13 +8,14 @@
 use std::ffi::{OsStr, OsString};
 use std::io::{self, Read, Write};
 use std::mem;
-use std::os::fd::OwnedFd;
+use std::os::fd::{AsRawFd, OwnedFd, RawFd};
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::process::ExitStatusExt;
 use std::path::{Path, PathBuf};
 pub use std::process::{ExitStatus, Output};
 
-use rustix::fs::OFlags;
+use rustix::fs::{Mode, OFlags};
+use rustix::pipe::pipe;
 use rustix::process::{Pid, Signal};
 
 /// A process builder, providing fine-grained control
@@ -563,22 +564,17 @@ impl Child {
     /// assert!(output.status.success());
     /// ```
     pub fn wait_with_output(mut self) -> io::Result<Output> {
+        // Collect stdio buffers.
+        let reader = ChildReader::new(self.stdout.take(), self.stderr.take())?;
+        let (stdout, stderr) = reader.read()?;
+
+        // Explicitly drop stdin, to avoid deadlocks.
+        drop(self.stdin.take());
+
         // Wait for process termination.
         let status = self.wait()?;
 
-        // Collect stdio buffers.
-
-        let mut stdout_buf = Vec::new();
-        if let Some(mut stdout) = self.stdout.take() {
-            stdout.read_to_end(&mut stdout_buf)?;
-        }
-
-        let mut stderr_buf = Vec::new();
-        if let Some(mut stderr) = self.stderr.take() {
-            stderr.read_to_end(&mut stderr_buf)?;
-        }
-
-        Ok(Output { status, stdout: stdout_buf, stderr: stderr_buf })
+        Ok(Output { status, stdout, stderr })
     }
 
     /// Get the child's exit signal.
@@ -690,6 +686,27 @@ impl Stdio {
     pub fn null() -> Self {
         Self { ty: StdioType::Null }
     }
+
+    /// Create pipes necessary for the stdio type.
+    ///
+    /// This will return the corresponding read and write FDs.
+    pub(crate) fn make_pipe(&self, stdin: bool) -> io::Result<(Option<OwnedFd>, Option<OwnedFd>)> {
+        match self.ty {
+            StdioType::Piped => {
+                let (rx, tx) = pipe()?;
+                Ok((Some(rx), Some(tx)))
+            },
+            StdioType::Inherit => Ok((None, None)),
+            StdioType::Null => {
+                let null_fd = rustix::fs::open("/dev/null", OFlags::RDWR, Mode::empty())?;
+                if stdin {
+                    Ok((Some(null_fd), None))
+                } else {
+                    Ok((None, Some(null_fd)))
+                }
+            },
+        }
+    }
 }
 
 /// Type of parent/child I/O coupling.
@@ -745,9 +762,6 @@ pub struct ChildStdout {
 
 impl ChildStdout {
     fn new(fd: OwnedFd) -> io::Result<Self> {
-        // Don't block when reading from FD.
-        rustix::fs::fcntl_setfl(&fd, OFlags::NONBLOCK)?;
-
         Ok(Self { fd })
     }
 }
@@ -767,21 +781,81 @@ impl Read for ChildStdout {
 ///
 /// [`stderr`]: Child::stderr
 /// [dropped]: Drop
-pub struct ChildStderr {
-    fd: OwnedFd,
+pub type ChildStderr = ChildStdout;
+
+struct ChildReader {
+    poll_fds: Vec<libc::pollfd>,
+    stdout: Option<ChildStdout>,
+    stderr: Option<ChildStderr>,
+    stdout_buffer: Vec<u8>,
+    stderr_buffer: Vec<u8>,
 }
 
-impl ChildStderr {
-    fn new(fd: OwnedFd) -> io::Result<Self> {
-        // Don't block when reading from FD.
-        rustix::fs::fcntl_setfl(&fd, OFlags::NONBLOCK)?;
+impl ChildReader {
+    fn new(stdout: Option<ChildStdout>, stderr: Option<ChildStderr>) -> io::Result<Self> {
+        let mut poll_fds = Vec::new();
 
-        Ok(Self { fd })
+        if let Some(stdout) = &stdout {
+            rustix::fs::fcntl_setfl(&stdout.fd, OFlags::NONBLOCK)?;
+            let fd = stdout.fd.as_raw_fd();
+            poll_fds.push(libc::pollfd { fd, events: libc::POLLIN, revents: 0 });
+        }
+
+        if let Some(stderr) = &stderr {
+            rustix::fs::fcntl_setfl(&stderr.fd, OFlags::NONBLOCK)?;
+            let fd = stderr.fd.as_raw_fd();
+            poll_fds.push(libc::pollfd { fd, events: libc::POLLIN, revents: 0 });
+        }
+
+        Ok(Self {
+            poll_fds,
+            stdout,
+            stderr,
+            stdout_buffer: Default::default(),
+            stderr_buffer: Default::default(),
+        })
     }
-}
 
-impl Read for ChildStderr {
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        rustix::io::read(&self.fd, buf).map_err(io::Error::from)
+    /// Read stdout and stderr into buffers.
+    fn read(mut self) -> io::Result<(Vec<u8>, Vec<u8>)> {
+        while !self.poll_fds.is_empty() {
+            // Block for next FD readiness.
+            let result = unsafe { libc::poll(self.poll_fds.as_mut_ptr(), 2, -1) };
+            if result == -1 {
+                return Err(io::Error::last_os_error());
+            }
+
+            // Read from all FDs.
+            for i in (0..self.poll_fds.len()).rev() {
+                // Ignore FDs that aren't ready.
+                let poll_fd = &self.poll_fds[i];
+                if poll_fd.revents == 0 {
+                    continue;
+                }
+
+                // Get stdio/buffer corresponding to the FD.
+                let (stdio, buffer) = self.stdio_from_fd(poll_fd.fd);
+
+                // Read all available data.
+                match stdio.read_to_end(buffer) {
+                    Ok(_) => {
+                        self.poll_fds.remove(i);
+                    },
+                    Err(err) if err.kind() == io::ErrorKind::WouldBlock => (),
+                    Err(err) => return Err(err),
+                }
+            }
+        }
+
+        Ok((self.stdout_buffer, self.stderr_buffer))
+    }
+
+    /// Get the stdio handles corresponding to a FD.
+    fn stdio_from_fd(&mut self, fd: RawFd) -> (&mut ChildStdout, &mut Vec<u8>) {
+        match (self.stdout.as_mut(), self.stderr.as_mut()) {
+            (Some(stdout), _) if stdout.fd.as_raw_fd() == fd => (stdout, &mut self.stdout_buffer),
+            (_, Some(stderr)) if stderr.fd.as_raw_fd() == fd => (stderr, &mut self.stderr_buffer),
+            _ => unreachable!(),
+        }
     }
 }

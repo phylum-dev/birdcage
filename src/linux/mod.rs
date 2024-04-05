@@ -3,19 +3,17 @@
 use std::collections::HashMap;
 use std::ffi::CString;
 use std::io::{Error as IoError, ErrorKind as IoErrorKind};
-use std::os::fd::{BorrowedFd, OwnedFd};
+use std::os::fd::OwnedFd;
 use std::os::unix::ffi::OsStrExt;
 use std::path::{Component, Path, PathBuf};
 use std::{env, io, ptr};
 
 use rustix::pipe::pipe;
 use rustix::process::{Gid, Pid, Uid, WaitOptions};
-use rustix::stdio;
 
 use crate::error::{Error, Result};
 use crate::linux::namespaces::{MountAttrFlags, Namespaces};
 use crate::linux::seccomp::SyscallFilter;
-use crate::process::StdioType;
 use crate::{Child, Command, Exception, Sandbox};
 
 mod namespaces;
@@ -50,15 +48,10 @@ impl Sandbox for LinuxSandbox {
 
     fn spawn(self, sandboxee: Command) -> Result<Child> {
         // Create pipes to hook up init's stdio.
-        let (stdin_rx, stdin_tx) = pipe().map_err(IoError::from)?;
-        let (stdout_rx, stdout_tx) = pipe().map_err(IoError::from)?;
-        let (stderr_rx, stderr_tx) = pipe().map_err(IoError::from)?;
+        let (stdin_rx, stdin_tx) = sandboxee.stdin.make_pipe(true)?;
+        let (stdout_rx, stdout_tx) = sandboxee.stdout.make_pipe(false)?;
+        let (stderr_rx, stderr_tx) = sandboxee.stderr.make_pipe(false)?;
         let (exit_signal_rx, exit_signal_tx) = pipe().map_err(IoError::from)?;
-
-        // Connect pipes and return FDs which need to be read manually.
-        let stdin_tx = connect_pipe(sandboxee.stdin.ty, stdin_tx, stdio::stdin())?;
-        let stdout_rx = connect_pipe(sandboxee.stdout.ty, stdout_rx, stdio::stdout())?;
-        let stderr_rx = connect_pipe(sandboxee.stderr.ty, stderr_rx, stdio::stderr())?;
 
         // Spawn isolated sandbox PID 1.
         let allow_networking = self.allow_networking;
@@ -105,11 +98,15 @@ fn spawn_sandbox_init(init_arg: ProcessInitArg, allow_networking: bool) -> Resul
         }
 
         // Spawn sandbox init process.
-        let init_arg_raw = Box::into_raw(Box::new(init_arg)) as _;
-        let init_pid = libc::clone(sandbox_init, stack_top, flags | libc::SIGCHLD, init_arg_raw);
+        let init_arg_raw = Box::into_raw(Box::new(init_arg));
+        let init_pid =
+            libc::clone(sandbox_init, stack_top, flags | libc::SIGCHLD, init_arg_raw as _);
         if init_pid == -1 {
             Err(IoError::last_os_error().into())
         } else {
+            // Ensure stdio pipe FDs are closed in the parent process.
+            let _init_arg = Box::from_raw(init_arg_raw);
+
             Ok(init_pid)
         }
     }
@@ -136,9 +133,15 @@ extern "C" fn sandbox_init(arg: *mut libc::c_void) -> libc::c_int {
 /// Wrapper to simplify error handling.
 fn sandbox_init_inner(mut init_arg: ProcessInitArg) -> io::Result<libc::c_int> {
     // Hook up stdio to parent process.
-    rustix::io::dup2(stdio::stdin(), &mut init_arg.stdin)?;
-    rustix::io::dup2(stdio::stdout(), &mut init_arg.stdout)?;
-    rustix::io::dup2(stdio::stderr(), &mut init_arg.stderr)?;
+    if let Some(stdin_pipe) = &mut init_arg.stdin {
+        rustix::stdio::dup2_stdin(stdin_pipe)?;
+    }
+    if let Some(stdout_pipe) = &init_arg.stdout {
+        rustix::stdio::dup2_stdout(stdout_pipe)?;
+    }
+    if let Some(stderr_pipe) = &init_arg.stderr {
+        rustix::stdio::dup2_stderr(stderr_pipe)?;
+    }
 
     // Map root UID and GID.
     namespaces::map_ids(init_arg.parent_euid.as_raw(), init_arg.parent_egid.as_raw(), 0, 0)?;
@@ -207,9 +210,9 @@ struct ProcessInitArg {
 
     exit_signal: OwnedFd,
 
-    stdin: OwnedFd,
-    stdout: OwnedFd,
-    stderr: OwnedFd,
+    stdin: Option<OwnedFd>,
+    stdout: Option<OwnedFd>,
+    stderr: Option<OwnedFd>,
 }
 
 impl ProcessInitArg {
@@ -217,9 +220,9 @@ impl ProcessInitArg {
         sandbox: LinuxSandbox,
         sandboxee: Command,
         exit_signal: OwnedFd,
-        stdin: OwnedFd,
-        stdout: OwnedFd,
-        stderr: OwnedFd,
+        stdin: Option<OwnedFd>,
+        stdout: Option<OwnedFd>,
+        stderr: Option<OwnedFd>,
     ) -> Self {
         // Get EUID/EGID outside of the namespaces.
         let parent_euid = rustix::process::geteuid();
@@ -365,23 +368,4 @@ fn normalize_path(path: &Path) -> PathBuf {
 /// Check if a path contains any symlinks.
 fn path_has_symlinks(path: &Path) -> bool {
     path.ancestors().any(|path| path.read_link().is_ok())
-}
-
-/// Connect pipe end to its corresponding file descriptor.
-///
-/// This will return `Some(OwnedFd)` for [`StdioType::Piped`] and `None`
-/// otherwise.
-fn connect_pipe(
-    ty: StdioType,
-    mut pipe_fd: OwnedFd,
-    fd: BorrowedFd<'static>,
-) -> io::Result<Option<OwnedFd>> {
-    match ty {
-        StdioType::Piped => Ok(Some(pipe_fd)),
-        StdioType::Inherit => {
-            rustix::io::dup2(fd, &mut pipe_fd)?;
-            Ok(None)
-        },
-        StdioType::Null => Ok(None),
-    }
 }

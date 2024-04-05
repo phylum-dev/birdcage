@@ -4,8 +4,6 @@ mod linux;
 mod macos;
 
 #[cfg(target_os = "linux")]
-pub(crate) use crate::process::linux::StdioType;
-#[cfg(target_os = "linux")]
 pub use crate::process::linux::{
     Child, ChildStderr, ChildStdin, ChildStdout, Command, ExitStatus, Output, Stdio,
 };
