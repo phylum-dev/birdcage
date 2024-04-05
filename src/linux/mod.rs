@@ -6,7 +6,7 @@ use std::io::{Error as IoError, ErrorKind as IoErrorKind};
 use std::os::fd::OwnedFd;
 use std::os::unix::ffi::OsStrExt;
 use std::path::{Component, Path, PathBuf};
-use std::{env, io, ptr};
+use std::{env, fs, io, ptr};
 
 use rustix::pipe::pipe;
 use rustix::process::{Gid, Pid, Uid, WaitOptions};
@@ -47,6 +47,12 @@ impl Sandbox for LinuxSandbox {
     }
 
     fn spawn(self, sandboxee: Command) -> Result<Child> {
+        // Ensure calling process is not multi-threaded.
+        assert!(
+            thread_count().unwrap_or(0) == 1,
+            "`Sandbox::spawn` must be called from a single-threaded process"
+        );
+
         // Create pipes to hook up init's stdio.
         let stdin_pipe = sandboxee.stdin.make_pipe(true)?;
         let stdout_pipe = sandboxee.stdout.make_pipe(false)?;
@@ -401,4 +407,25 @@ fn normalize_path(path: &Path) -> PathBuf {
 /// Check if a path contains any symlinks.
 fn path_has_symlinks(path: &Path) -> bool {
     path.ancestors().any(|path| path.read_link().is_ok())
+}
+
+/// Get the number of threads used by the current process.
+fn thread_count() -> io::Result<usize> {
+    // Read process status from procfs.
+    let status = fs::read_to_string("/proc/self/status")?;
+
+    // Parse procfs output.
+    let (_, threads_start) = status.split_once("Threads:").ok_or_else(|| {
+        io::Error::new(io::ErrorKind::InvalidData, "/proc/self/status missing \"Threads:\"")
+    })?;
+    let thread_count = threads_start.split_whitespace().next().ok_or_else(|| {
+        io::Error::new(io::ErrorKind::InvalidData, "/proc/self/status output malformed")
+    })?;
+
+    // Convert to number.
+    let thread_count = thread_count
+        .parse::<usize>()
+        .map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err))?;
+
+    Ok(thread_count)
 }
