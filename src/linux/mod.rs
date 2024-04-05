@@ -48,18 +48,34 @@ impl Sandbox for LinuxSandbox {
 
     fn spawn(self, sandboxee: Command) -> Result<Child> {
         // Create pipes to hook up init's stdio.
-        let (stdin_rx, stdin_tx) = sandboxee.stdin.make_pipe(true)?;
-        let (stdout_rx, stdout_tx) = sandboxee.stdout.make_pipe(false)?;
-        let (stderr_rx, stderr_tx) = sandboxee.stderr.make_pipe(false)?;
-        let (exit_signal_rx, exit_signal_tx) = pipe().map_err(IoError::from)?;
+        let stdin_pipe = sandboxee.stdin.make_pipe(true)?;
+        let stdout_pipe = sandboxee.stdout.make_pipe(false)?;
+        let stderr_pipe = sandboxee.stderr.make_pipe(false)?;
+        let exit_signal_pipe = pipe().map_err(IoError::from)?;
 
         // Spawn isolated sandbox PID 1.
         let allow_networking = self.allow_networking;
-        let init_arg =
-            ProcessInitArg::new(self, sandboxee, exit_signal_tx, stdin_rx, stdout_tx, stderr_tx);
-        let init_pid = spawn_sandbox_init(init_arg, allow_networking)?;
+        let init_arg = ProcessInitArg::new(
+            self,
+            sandboxee,
+            exit_signal_pipe,
+            stdin_pipe,
+            stdout_pipe,
+            stderr_pipe,
+        );
+        let mut init_arg = spawn_sandbox_init(init_arg, allow_networking)?;
 
-        let child = Child::new(init_pid, exit_signal_rx, stdin_tx, stdout_rx, stderr_rx)?;
+        // TODO: The take().unwrap() definitely kinda sucks.
+        //
+        // Deconstruct init args, dropping unused FDs.
+        let pid = init_arg.pid;
+        let stdin_tx = init_arg.stdin_tx.take();
+        let stdout_rx = init_arg.stdout_rx.take();
+        let stderr_rx = init_arg.stderr_rx.take();
+        let exit_signal_rx = init_arg.exit_signal_rx.take().unwrap();
+        drop(init_arg);
+
+        let child = Child::new(pid, exit_signal_rx, stdin_tx, stdout_rx, stderr_rx)?;
 
         Ok(child)
     }
@@ -71,7 +87,7 @@ impl Sandbox for LinuxSandbox {
 /// namespace isolations in place.
 ///
 /// Returns PID of the child process if successful.
-fn spawn_sandbox_init(init_arg: ProcessInitArg, allow_networking: bool) -> Result<i32> {
+fn spawn_sandbox_init(init_arg: ProcessInitArg, allow_networking: bool) -> Result<ProcessInitArg> {
     unsafe {
         // Initialize child process stack memory.
         let stack_size = 1024 * 1024;
@@ -104,10 +120,9 @@ fn spawn_sandbox_init(init_arg: ProcessInitArg, allow_networking: bool) -> Resul
         if init_pid == -1 {
             Err(IoError::last_os_error().into())
         } else {
-            // Ensure stdio pipe FDs are closed in the parent process.
-            let _init_arg = Box::from_raw(init_arg_raw);
-
-            Ok(init_pid)
+            let mut init_arg = Box::from_raw(init_arg_raw);
+            init_arg.pid = init_pid;
+            Ok(*init_arg)
         }
     }
 }
@@ -132,14 +147,19 @@ extern "C" fn sandbox_init(arg: *mut libc::c_void) -> libc::c_int {
 ///
 /// Wrapper to simplify error handling.
 fn sandbox_init_inner(mut init_arg: ProcessInitArg) -> io::Result<libc::c_int> {
+    // Close all unused FDs.
+    init_arg.stdin_tx.take();
+    init_arg.stdout_rx.take();
+    init_arg.stderr_rx.take();
+
     // Hook up stdio to parent process.
-    if let Some(stdin_pipe) = &mut init_arg.stdin {
+    if let Some(stdin_pipe) = &mut init_arg.stdin_rx {
         rustix::stdio::dup2_stdin(stdin_pipe)?;
     }
-    if let Some(stdout_pipe) = &init_arg.stdout {
+    if let Some(stdout_pipe) = &init_arg.stdout_tx {
         rustix::stdio::dup2_stdout(stdout_pipe)?;
     }
-    if let Some(stderr_pipe) = &init_arg.stderr {
+    if let Some(stderr_pipe) = &init_arg.stderr_tx {
         rustix::stdio::dup2_stderr(stderr_pipe)?;
     }
 
@@ -186,7 +206,7 @@ fn sandbox_init_inner(mut init_arg: ProcessInitArg) -> io::Result<libc::c_int> {
             Some((pid, status)) if Some(pid) == child_pid => match status.terminating_signal() {
                 Some(signal) => {
                     // Send exit signal to parent.
-                    rustix::io::write(init_arg.exit_signal, &signal.to_le_bytes())?;
+                    rustix::io::write(init_arg.exit_signal_tx, &signal.to_le_bytes())?;
                     return Ok(1);
                 },
                 None => return Ok(status.exit_status().unwrap_or(1) as i32),
@@ -208,21 +228,29 @@ struct ProcessInitArg {
     parent_euid: Uid,
     parent_egid: Gid,
 
-    exit_signal: OwnedFd,
+    // FDs used by the child process.
+    stdin_rx: Option<OwnedFd>,
+    stdout_tx: Option<OwnedFd>,
+    stderr_tx: Option<OwnedFd>,
+    exit_signal_tx: OwnedFd,
 
-    stdin: Option<OwnedFd>,
-    stdout: Option<OwnedFd>,
-    stderr: Option<OwnedFd>,
+    // FDs passed to the child for closing them.
+    stdin_tx: Option<OwnedFd>,
+    stdout_rx: Option<OwnedFd>,
+    stderr_rx: Option<OwnedFd>,
+    exit_signal_rx: Option<OwnedFd>,
+
+    pid: i32,
 }
 
 impl ProcessInitArg {
     fn new(
         sandbox: LinuxSandbox,
         sandboxee: Command,
-        exit_signal: OwnedFd,
-        stdin: Option<OwnedFd>,
-        stdout: Option<OwnedFd>,
-        stderr: Option<OwnedFd>,
+        exit_signal: (OwnedFd, OwnedFd),
+        stdin: (Option<OwnedFd>, Option<OwnedFd>),
+        stdout: (Option<OwnedFd>, Option<OwnedFd>),
+        stderr: (Option<OwnedFd>, Option<OwnedFd>),
     ) -> Self {
         // Get EUID/EGID outside of the namespaces.
         let parent_euid = rustix::process::geteuid();
@@ -231,14 +259,19 @@ impl ProcessInitArg {
         Self {
             parent_euid,
             parent_egid,
-            exit_signal,
             sandboxee,
-            stdout,
-            stderr,
-            stdin,
             path_exceptions: sandbox.path_exceptions,
             env_exceptions: sandbox.env_exceptions,
             full_env: sandbox.full_env,
+            stdin_rx: stdin.0,
+            stdout_tx: stdout.1,
+            stderr_tx: stderr.1,
+            exit_signal_tx: exit_signal.1,
+            stdin_tx: stdin.1,
+            stdout_rx: stdout.0,
+            stderr_rx: stderr.0,
+            exit_signal_rx: Some(exit_signal.0),
+            pid: -1,
         }
     }
 }

@@ -14,6 +14,11 @@ name = "harness"
 path = "integration/harness.rs"
 harness = false
 
+[[test]]
+name = "command_pipes"
+path = "integration/command_pipes.rs"
+harness = false
+
 [target.'cfg(target_os = "linux")'.dependencies]
 libc = "0.2.132"
 log = "0.4.20"
