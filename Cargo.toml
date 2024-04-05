@@ -15,8 +15,8 @@ path = "integration/harness.rs"
 harness = false
 
 [[test]]
-name = "command_pipes"
-path = "integration/command_pipes.rs"
+name = "command_io"
+path = "integration/command_io.rs"
 harness = false
 
 [target.'cfg(target_os = "linux")'.dependencies]
