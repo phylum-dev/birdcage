@@ -71,8 +71,6 @@ impl Sandbox for LinuxSandbox {
         );
         let mut init_arg = spawn_sandbox_init(init_arg, allow_networking)?;
 
-        // TODO: The take().unwrap() definitely kinda sucks.
-        //
         // Deconstruct init args, dropping unused FDs.
         let pid = init_arg.pid;
         let stdin_tx = init_arg.stdin_tx.take();
