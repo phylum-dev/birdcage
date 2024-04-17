@@ -53,6 +53,11 @@ impl Sandbox for LinuxSandbox {
             "`Sandbox::spawn` must be called from a single-threaded process"
         );
 
+        // Remove environment variables.
+        if !self.full_env {
+            crate::restrict_env_variables(&self.env_exceptions);
+        }
+
         // Create pipes to hook up init's stdio.
         let stdin_pipe = sandboxee.stdin.make_pipe(true)?;
         let stdout_pipe = sandboxee.stdout.make_pipe(false)?;
@@ -84,14 +89,12 @@ impl Sandbox for LinuxSandbox {
                 // Deconstruct all remaining fields to manually drop them.
                 path_exceptions: _x0,
                 exit_signal_tx: _x1,
-                env_exceptions: _x2,
-                parent_euid: _x3,
-                parent_egid: _x4,
-                stdout_tx: _x5,
-                stderr_tx: _x6,
-                sandboxee: _x7,
-                full_env: _x8,
-                stdin_rx: _x9,
+                parent_euid: _x2,
+                parent_egid: _x3,
+                stdout_tx: _x4,
+                stderr_tx: _x5,
+                sandboxee: _x6,
+                stdin_rx: _x7,
             } = init_arg;
             (pid, stdin_tx, stdout_rx, stderr_rx, exit_signal_rx)
         };
@@ -172,6 +175,7 @@ fn sandbox_init_inner(mut init_arg: ProcessInitArg) -> io::Result<libc::c_int> {
     init_arg.stdin_tx.take();
     init_arg.stdout_rx.take();
     init_arg.stderr_rx.take();
+    drop(init_arg.exit_signal_rx);
 
     // Hook up stdio to parent process.
     if let Some(stdin_pipe) = &mut init_arg.stdin_rx {
@@ -186,11 +190,6 @@ fn sandbox_init_inner(mut init_arg: ProcessInitArg) -> io::Result<libc::c_int> {
 
     // Map root UID and GID.
     namespaces::map_ids(init_arg.parent_euid.as_raw(), init_arg.parent_egid.as_raw(), 0, 0)?;
-
-    // Remove environment variables.
-    if !init_arg.full_env {
-        crate::restrict_env_variables(&init_arg.env_exceptions);
-    }
 
     // Isolate filesystem using a mount namespace.
     namespaces::setup_mount_namespace(init_arg.path_exceptions)?;
@@ -240,9 +239,7 @@ fn sandbox_init_inner(mut init_arg: ProcessInitArg) -> io::Result<libc::c_int> {
 
 /// Init process argument passed to `clone`.
 struct ProcessInitArg {
-    env_exceptions: Vec<String>,
     path_exceptions: PathExceptions,
-    full_env: bool,
 
     sandboxee: Command,
 
@@ -282,8 +279,6 @@ impl ProcessInitArg {
             parent_egid,
             sandboxee,
             path_exceptions: sandbox.path_exceptions,
-            env_exceptions: sandbox.env_exceptions,
-            full_env: sandbox.full_env,
             stdin_rx: stdin.0,
             stdout_tx: stdout.1,
             stderr_tx: stderr.1,
