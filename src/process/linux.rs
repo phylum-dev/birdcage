@@ -564,8 +564,8 @@ impl Child {
     /// assert!(output.status.success());
     /// ```
     pub fn wait_with_output(mut self) -> io::Result<Output> {
-        // Explicitly drop stdin, to avoid deadlocks.
-        drop(self.stdin.take());
+        // Drop stdin, to avoid deadlocks.
+        let _ = self.stdin.take();
 
         // Collect stdio buffers.
         let reader = ChildReader::new(self.stdout.take(), self.stderr.take())?;
