@@ -31,7 +31,7 @@ fn pipe_stdin_to_stdout() {
 
     // Write test data to stdin.
     let expected = b"test\n";
-    let _ = child.stdin.as_mut().unwrap().write(expected).unwrap();
+    child.stdin.as_mut().unwrap().write_all(expected).unwrap();
 
     // Read stdout.
     let output = child.wait_with_output().unwrap();
