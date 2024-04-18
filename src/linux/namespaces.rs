@@ -286,19 +286,33 @@ pub fn create_user_namespace(
     extra_namespaces: Namespaces,
 ) -> io::Result<()> {
     // Get current user's EUID and EGID.
-    let parent_uid = unsafe { libc::geteuid() };
-    let parent_gid = unsafe { libc::getegid() };
+    let parent_euid = unsafe { libc::geteuid() };
+    let parent_egid = unsafe { libc::getegid() };
 
     // Create the namespace.
     unshare(Namespaces::USER | extra_namespaces)?;
 
     // Map the UID and GID.
-    let uid_map = format!("{child_uid} {parent_uid} 1\n");
-    let gid_map = format!("{child_gid} {parent_gid} 1\n");
+    map_ids(parent_euid, parent_egid, child_uid, child_gid)?;
+
+    Ok(())
+}
+
+/// Update /proc uid/gid maps.
+///
+/// This should be called after creating a user namespace to ensure proper ID
+/// mappings.
+pub fn map_ids(
+    parent_euid: u32,
+    parent_egid: u32,
+    child_uid: u32,
+    child_gid: u32,
+) -> io::Result<()> {
+    let uid_map = format!("{child_uid} {parent_euid} 1\n");
+    let gid_map = format!("{child_gid} {parent_egid} 1\n");
     fs::write("/proc/self/uid_map", uid_map.as_bytes())?;
     fs::write("/proc/self/setgroups", b"deny")?;
     fs::write("/proc/self/gid_map", gid_map.as_bytes())?;
-
     Ok(())
 }
 

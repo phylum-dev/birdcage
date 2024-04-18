@@ -143,8 +143,8 @@ fn run_setup(test_name: &str, tempdir: String, setup: &fn(PathBuf) -> TestSetup)
     }
 
     // Reexecute test with sandbox enabled.
-    let mut command = Command::new(current_exe);
-    command.args([test_name, &test_setup.data.as_str()]);
+    let mut command = birdcage::process::Command::new(current_exe);
+    command.args([test_name, test_setup.data.as_str()]);
     let child = test_setup.sandbox.spawn(command).unwrap();
 
     // Validate test results.

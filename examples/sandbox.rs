@@ -2,8 +2,8 @@
 
 use std::error::Error;
 use std::path::PathBuf;
-use std::process::{self, Command};
 
+use birdcage::process::Command;
 use birdcage::{Birdcage, Exception, Sandbox};
 use clap::{Parser, ValueHint};
 
@@ -70,7 +70,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut child = birdcage.spawn(command)?;
 
     // Wait for sandboxee to exit.
-    let exit_code = child.wait()?.code().unwrap_or(111);
+    child.wait()?;
 
-    process::exit(exit_code);
+    std::process::exit(0);
 }
