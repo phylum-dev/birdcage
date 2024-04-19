@@ -6,6 +6,16 @@ The sections should follow the order `Packaging`, `Added`, `Changed`, `Fixed` an
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.8.0] - 2024-04-19
+
+### Changed
+
+- `Sandbox::spawn` now takes a `birdcage::process::Command`
+
+### Fixed
+
+- (Linux) Sandboxed process not killed when parent is terminated with a signal
+
 ## [0.7.1] - 2024-02-07
 
 ### Changed
