@@ -11,7 +11,6 @@ use std::mem;
 use std::os::fd::{AsRawFd, OwnedFd, RawFd};
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::process::ExitStatusExt;
-use std::path::{Path, PathBuf};
 pub use std::process::{ExitStatus, Output};
 
 use rustix::fs::{Mode, OFlags};
@@ -34,7 +33,6 @@ use rustix::process::{Pid, Signal};
 pub struct Command {
     program: OsString,
     args: Vec<OsString>,
-    current_dir: Option<PathBuf>,
     pub(crate) stdin: Stdio,
     pub(crate) stdout: Stdio,
     pub(crate) stderr: Stdio,
@@ -67,10 +65,9 @@ impl Command {
         let program = program.as_ref().to_os_string();
         Self {
             program,
-            stdout: Stdio::inherit(),
-            stderr: Stdio::inherit(),
-            stdin: Stdio::inherit(),
-            current_dir: Default::default(),
+            stdout: Default::default(),
+            stderr: Default::default(),
+            stdin: Default::default(),
             args: Default::default(),
         }
     }
@@ -150,32 +147,6 @@ impl Command {
         self
     }
 
-    /// Sets the working directory for the child process.
-    ///
-    /// # Platform-specific behavior
-    ///
-    /// If the program path is relative (e.g., `"./script.sh"`), it's ambiguous
-    /// whether it should be interpreted relative to the parent's working
-    /// directory or relative to `current_dir`. The behavior in this case is
-    /// platform specific and unstable, and it's recommended to use
-    /// [`canonicalize`] to get an absolute program path instead.
-    ///
-    /// # Examples
-    ///
-    /// Basic usage:
-    ///
-    /// ```no_run
-    /// use birdcage::process::Command;
-    ///
-    /// Command::new("ls").current_dir("/bin");
-    /// ```
-    ///
-    /// [`canonicalize`]: std::fs::canonicalize
-    pub fn current_dir<P: AsRef<Path>>(&mut self, dir: P) -> &mut Self {
-        self.current_dir = Some(dir.as_ref().into());
-        self
-    }
-
     /// Configuration for the child process's standard input (stdin) handle.
     ///
     /// Defaults to [`inherit`].
@@ -249,38 +220,26 @@ impl Command {
     pub fn get_program(&self) -> &OsStr {
         OsStr::from_bytes(self.program.as_bytes())
     }
-
-    /// Returns the working directory for the child process.
-    ///
-    /// This returns [`None`] if the working directory will not be changed.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use std::path::Path;
-    ///
-    /// use birdcage::process::Command;
-    ///
-    /// let mut cmd = Command::new("ls");
-    /// assert_eq!(cmd.get_current_dir(), None);
-    /// cmd.current_dir("/bin");
-    /// assert_eq!(cmd.get_current_dir(), Some(Path::new("/bin")));
-    /// ```
-    pub fn get_current_dir(&self) -> Option<&Path> {
-        self.current_dir.as_deref()
-    }
 }
 
 impl From<Command> for std::process::Command {
     fn from(command: Command) -> Self {
         let mut std_command = std::process::Command::new(command.program);
         std_command.args(command.args);
-        std_command.stdin(std::process::Stdio::inherit());
-        std_command.stdout(std::process::Stdio::inherit());
-        std_command.stderr(std::process::Stdio::inherit());
 
-        if let Some(current_dir) = command.current_dir {
-            std_command.current_dir(current_dir);
+        let stdin: Option<std::process::Stdio> = command.stdin.into();
+        if let Some(stdin) = stdin {
+            std_command.stdin(stdin);
+        }
+
+        let stdout: Option<std::process::Stdio> = command.stdout.into();
+        if let Some(stdout) = stdout {
+            std_command.stdout(stdout);
+        }
+
+        let stderr: Option<std::process::Stdio> = command.stderr.into();
+        if let Some(stderr) = stderr {
+            std_command.stderr(stderr);
         }
 
         std_command
@@ -611,6 +570,7 @@ impl Child {
 /// [`stdin`]: Command::stdin
 /// [`stdout`]: Command::stdout
 /// [`stderr`]: Command::stderr
+#[derive(Default)]
 pub struct Stdio {
     pub(crate) ty: StdioType,
 }
@@ -692,11 +652,11 @@ impl Stdio {
     /// This will return the corresponding read and write FDs.
     pub(crate) fn make_pipe(&self, stdin: bool) -> io::Result<(Option<OwnedFd>, Option<OwnedFd>)> {
         match self.ty {
+            StdioType::Inherit | StdioType::Default => Ok((None, None)),
             StdioType::Piped => {
                 let (rx, tx) = pipe()?;
                 Ok((Some(rx), Some(tx)))
             },
-            StdioType::Inherit => Ok((None, None)),
             StdioType::Null => {
                 let null_fd = rustix::fs::open("/dev/null", OFlags::RDWR, Mode::empty())?;
                 if stdin {
@@ -709,9 +669,22 @@ impl Stdio {
     }
 }
 
+impl From<Stdio> for Option<std::process::Stdio> {
+    fn from(stdio: Stdio) -> Option<std::process::Stdio> {
+        match stdio.ty {
+            StdioType::Default => None,
+            StdioType::Inherit => Some(std::process::Stdio::inherit()),
+            StdioType::Piped => Some(std::process::Stdio::piped()),
+            StdioType::Null => Some(std::process::Stdio::null()),
+        }
+    }
+}
+
 /// Type of parent/child I/O coupling.
-#[derive(Copy, Clone)]
+#[derive(Default, Copy, Clone)]
 pub(crate) enum StdioType {
+    #[default]
+    Default,
     Piped,
     Inherit,
     Null,
