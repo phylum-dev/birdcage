@@ -216,6 +216,9 @@ fn sandbox_init_inner(mut init_arg: ProcessInitArg) -> io::Result<libc::c_int> {
 
     // Spawn sandboxed process.
     let mut std_command = std::process::Command::from(init_arg.sandboxee);
+    std_command.stdin(std::process::Stdio::inherit());
+    std_command.stdout(std::process::Stdio::inherit());
+    std_command.stderr(std::process::Stdio::inherit());
     let child = std_command.spawn()?;
 
     // Reap zombie children.
