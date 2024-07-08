@@ -20,9 +20,9 @@ jobs:
           - target: aarch64-unknown-linux-gnu
             os: [self-hosted, linux, arm64]
           - target: x86_64-apple-darwin
-            os: macos-latest
+            os: macos-14
           - target: aarch64-apple-darwin
-            os: [self-hosted, macos, arm64]
+            os: macos-14
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout repository
