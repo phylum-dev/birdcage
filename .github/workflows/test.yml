@@ -5,6 +5,10 @@ on:
   workflow_dispatch:
   pull_request:
   push:
+    branches:
+      - main
+    tags:
+      - '*'
   # Run weekly on the default branch to make sure it always builds with the latest rust release
   schedule:
     - cron: '30 5 * * 1'
@@ -24,7 +28,10 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install Rust toolchain
-        run: rustup toolchain install --no-self-update stable --profile minimal -c clippy
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSfL https://sh.rustup.rs \
+            | sh -s -- -y --default-toolchain stable --profile minimal -c clippy
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
 
       - name: Test Stable
         run: cargo +stable test
