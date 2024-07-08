@@ -5,6 +5,10 @@ on:
   workflow_dispatch:
   pull_request:
   push:
+    branches:
+      - main
+    tags:
+      - '*'
   # Run weekly on the default branch to make sure it always builds with the latest rust release
   schedule:
     - cron: '30 5 * * 1'
@@ -14,43 +18,47 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - target: x86_64-unknown-linux-gnu
-            os: ubuntu-latest
-          - target: aarch64-unknown-linux-gnu
-            os: [self-hosted, linux, arm64]
-          - target: x86_64-apple-darwin
-            os: macos-latest
-          - target: aarch64-apple-darwin
-            os: [self-hosted, macos, arm64]
+        os:
+          - ubuntu-latest
+          - [self-hosted, linux, arm64]
+          - macos-latest
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Install Rust toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          target: ${{ matrix.target }}
-          profile: minimal
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSfL https://sh.rustup.rs \
+            | sh -s -- -y --default-toolchain stable --profile minimal -c clippy
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
 
       - name: Test Stable
-        run: cargo test
+        run: cargo +stable test
 
       - name: Test Oldstable
         run: |
           oldstable=$(cat Cargo.toml | grep rust-version | sed 's/.*"\(.*\)".*/\1/')
           rustup toolchain install --profile minimal $oldstable
-          rustup default $oldstable
-          cargo test
+          cargo "+$oldstable" test
 
       - name: Clippy
-        run: |
-          rustup component add clippy
-          cargo clippy
+        run: cargo +stable clippy
 
-      - name : Rustfmt
+      - name: Rustfmt
         run: |
           rustup toolchain install nightly -c rustfmt
           cargo +nightly fmt -- --check
+
+  # This job reports the results of the test jobs above and is used
+  # to enforce status checks in the repo settings without needing
+  # to update those settings every time the test jobs are updated.
+  test-rollup:
+    name: Test rollup
+    runs-on: ubuntu-latest
+    if: always()
+    needs: test-matrix
+    steps:
+      - name: Check for test jobs failure or cancellation
+        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+        run: exit 1
