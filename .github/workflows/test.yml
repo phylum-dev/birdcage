@@ -20,7 +20,7 @@ jobs:
           - target: aarch64-unknown-linux-gnu
             os: [self-hosted, linux, arm64]
           - target: x86_64-apple-darwin
-            os: macos-14
+            os: macos-13
           - target: aarch64-apple-darwin
             os: macos-14
     runs-on: ${{ matrix.os }}
@@ -54,3 +54,16 @@ jobs:
         run: |
           rustup toolchain install nightly -c rustfmt
           cargo +nightly fmt -- --check
+
+  # This job reports the results of the test jobs above and is used
+  # to enforce status checks in the repo settings without needing
+  # to update those settings every time the test jobs are updated.
+  test-rollup:
+    name: Test rollup
+    runs-on: ubuntu-latest
+    if: always()
+    needs: test-matrix
+    steps:
+      - name: Check for test jobs failure or cancellation
+        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+        run: exit 1
