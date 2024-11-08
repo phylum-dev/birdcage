@@ -6,6 +6,7 @@ use std::io::{Error as IoError, ErrorKind as IoErrorKind};
 use std::os::fd::OwnedFd;
 use std::os::unix::ffi::OsStrExt;
 use std::path::{Component, Path, PathBuf};
+use std::sync::Mutex;
 use std::{env, fs, io, ptr};
 
 use rustix::pipe::pipe;
@@ -47,11 +48,8 @@ impl Sandbox for LinuxSandbox {
     }
 
     fn spawn(self, sandboxee: Command) -> Result<Child> {
-        // Ensure calling process is not multi-threaded.
-        assert!(
-            thread_count().unwrap_or(0) == 1,
-            "`Sandbox::spawn` must be called from a single-threaded process"
-        );
+        static CREATE_PROCESS_LOCK: Mutex<()> = Mutex::new(());
+        let _guard = CREATE_PROCESS_LOCK.lock();
 
         // Remove environment variables.
         if !self.full_env {
