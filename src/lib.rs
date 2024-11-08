@@ -81,8 +81,6 @@ pub trait Sandbox: Sized {
     ///
     /// # Errors
     ///
-    /// Sandboxing will fail if the calling process is not single-threaded.
-    ///
     /// After failure, the calling process might still be affected by partial
     /// sandboxing restrictions.
     fn spawn(self, sandboxee: Command) -> Result<Child>;
