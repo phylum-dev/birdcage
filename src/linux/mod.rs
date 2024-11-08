@@ -7,7 +7,7 @@ use std::os::fd::OwnedFd;
 use std::os::unix::ffi::OsStrExt;
 use std::path::{Component, Path, PathBuf};
 use std::sync::Mutex;
-use std::{env, fs, io, ptr};
+use std::{env, io, ptr};
 
 use rustix::pipe::pipe;
 use rustix::process::{Gid, Pid, Uid, WaitOptions};
