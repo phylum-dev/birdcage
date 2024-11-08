@@ -419,24 +419,3 @@ fn normalize_path(path: &Path) -> PathBuf {
 fn path_has_symlinks(path: &Path) -> bool {
     path.ancestors().any(|path| path.read_link().is_ok())
 }
-
-/// Get the number of threads used by the current process.
-fn thread_count() -> io::Result<usize> {
-    // Read process status from procfs.
-    let status = fs::read_to_string("/proc/self/status")?;
-
-    // Parse procfs output.
-    let (_, threads_start) = status.split_once("Threads:").ok_or_else(|| {
-        io::Error::new(io::ErrorKind::InvalidData, "/proc/self/status missing \"Threads:\"")
-    })?;
-    let thread_count = threads_start.split_whitespace().next().ok_or_else(|| {
-        io::Error::new(io::ErrorKind::InvalidData, "/proc/self/status output malformed")
-    })?;
-
-    // Convert to number.
-    let thread_count = thread_count
-        .parse::<usize>()
-        .map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err))?;
-
-    Ok(thread_count)
-}
