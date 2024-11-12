@@ -13,10 +13,12 @@ use rustix::process::{Gid, Pid, Uid, WaitOptions};
 
 use crate::error::{Error, Result};
 use crate::linux::namespaces::{MountAttrFlags, Namespaces};
+#[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
 use crate::linux::seccomp::SyscallFilter;
 use crate::{Child, Command, Exception, Sandbox};
 
 mod namespaces;
+#[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
 mod seccomp;
 
 /// Linux sandboxing.
@@ -206,6 +208,7 @@ fn sandbox_init_inner(mut init_arg: ProcessInitArg) -> io::Result<libc::c_int> {
     )?;
 
     // Setup system call filters.
+    #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
     SyscallFilter::apply().map_err(|err| IoError::new(IoErrorKind::Other, err))?;
 
     // Block suid/sgid.
