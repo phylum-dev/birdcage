@@ -5,14 +5,12 @@
 [![GitHub](https://img.shields.io/github/license/phylum-dev/birdcage)][license]
 [![GitHub issues](https://img.shields.io/github/issues/phylum-dev/birdcage)][issues]
 [![Contributor Covenant](https://img.shields.io/badge/Contributor%20Covenant-2.1-4baaaa.svg)][CoC]
-[![Discord](https://img.shields.io/discord/1070071012353376387?logo=discord)][discord_invite]
 [![Crate](https://img.shields.io/crates/v/birdcage)](https://crates.io/crates/birdcage)
 [![Documentation](https://docs.rs/birdcage/badge.svg)](https://docs.rs/birdcage)
 
 [license]: https://github.com/phylum-dev/birdcage/blob/main/LICENSE
 [issues]: https://github.com/phylum-dev/birdcage/issues
 [CoC]: https://github.com/phylum-dev/birdcage/blob/main/CODE_OF_CONDUCT.md
-[discord_invite]: https://discord.gg/Fe6pr5eW6p
 
 [![Birdcage logo](./assets/Birdcage.png)][protection]
 
