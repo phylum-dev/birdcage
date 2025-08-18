@@ -34,13 +34,25 @@ jobs:
           echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
 
       - name: Test Stable
-        run: cargo +stable test
+        run: |
+          # On Ubuntu use busybox to bypass user namespace restrictions.
+          if command -v busybox; then
+            busybox sh -c "cargo +stable test"
+          else
+            cargo +stable test
+          fi
 
       - name: Test Oldstable
         run: |
           oldstable=$(cat Cargo.toml | grep rust-version | sed 's/.*"\(.*\)".*/\1/')
           rustup toolchain install --profile minimal $oldstable
-          cargo "+$oldstable" test
+
+          # On Ubuntu use busybox to bypass user namespace restrictions.
+          if command -v busybox; then
+            busybox sh -c "cargo +$oldstable test"
+          else
+            cargo "+$oldstable" test
+          fi
 
       - name: Clippy
         run: cargo +stable clippy
