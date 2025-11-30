@@ -403,7 +403,23 @@ const SYSCALL_WHITELIST: &[libc::c_long] = &[
     libc::SYS_pkey_alloc,
     libc::SYS_pkey_free,
     libc::SYS_statx,
+    // #[cfg(not musl)]
+    #[cfg(target_env = "gnu")]
     libc::SYS_rseq,
+
+    // For the following configurations, `rseq` is not yet exposed in the libc crate.
+    // A PR was opened: https://github.com/rust-lang/libc/pull/4028
+    #[cfg(all(target_env = "musl", target_arch = "x86_64"))]
+    334,
+    #[cfg(all(target_env = "musl", target_arch = "aarch64"))]
+    293,
+    #[cfg(all(target_env = "musl", target_arch = "powerpc64"))]
+    387,
+    #[cfg(all(target_env = "musl", target_arch = "s390x"))]
+    383,
+    #[cfg(all(target_env = "musl", target_arch = "arm"))]
+    398,
+
     libc::SYS_pidfd_send_signal,
     libc::SYS_pidfd_open,
     libc::SYS_close_range,
