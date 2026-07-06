@@ -170,11 +170,7 @@ fn mount_tmpfs(dst: &CStr) -> io::Result<()> {
         libc::mount(ptr::null(), dst.as_ptr(), fstype.as_ptr(), flags.bits(), ptr::null())
     };
 
-    if res == 0 {
-        Ok(())
-    } else {
-        Err(IoError::last_os_error())
-    }
+    if res == 0 { Ok(()) } else { Err(IoError::last_os_error()) }
 }
 
 /// Mount a new procfs.
@@ -185,11 +181,7 @@ pub fn mount_proc(dst: &CStr) -> io::Result<()> {
         libc::mount(fstype.as_ptr(), dst.as_ptr(), fstype.as_ptr(), flags.bits(), ptr::null())
     };
 
-    if res == 0 {
-        Ok(())
-    } else {
-        Err(IoError::last_os_error())
-    }
+    if res == 0 { Ok(()) } else { Err(IoError::last_os_error()) }
 }
 
 /// Create a new bind mount.
@@ -198,11 +190,7 @@ fn bind_mount(src: &CStr, dst: &CStr) -> io::Result<()> {
     let res =
         unsafe { libc::mount(src.as_ptr(), dst.as_ptr(), ptr::null(), flags.bits(), ptr::null()) };
 
-    if res == 0 {
-        Ok(())
-    } else {
-        Err(IoError::last_os_error())
-    }
+    if res == 0 { Ok(()) } else { Err(IoError::last_os_error()) }
 }
 
 /// Remount an existing bind mount with a new set of mount flags.
@@ -220,11 +208,7 @@ fn update_mount_flags(mount: &CStr, flags: MountAttrFlags) -> io::Result<()> {
         )
     };
 
-    if res == 0 {
-        Ok(())
-    } else {
-        Err(IoError::last_os_error())
-    }
+    if res == 0 { Ok(()) } else { Err(IoError::last_os_error()) }
 }
 
 /// Recursively update the root to deny mount propagation.
@@ -234,11 +218,7 @@ fn deny_mount_propagation() -> io::Result<()> {
     let res =
         unsafe { libc::mount(ptr::null(), root.as_ptr(), ptr::null(), flags.bits(), ptr::null()) };
 
-    if res == 0 {
-        Ok(())
-    } else {
-        Err(IoError::last_os_error())
-    }
+    if res == 0 { Ok(()) } else { Err(IoError::last_os_error()) }
 }
 
 /// Change root directory to `new_root` and mount the old root in `put_old`.

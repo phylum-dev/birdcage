@@ -121,6 +121,6 @@ pub(crate) fn restrict_env_variables(exceptions: &[String]) {
     // Invalid unicode will cause `env::vars()` to panic, so we don't have to worry
     // about them getting ignored.
     for (key, _) in env::vars().filter(|(key, _)| !exceptions.contains(key)) {
-        env::remove_var(key);
+        unsafe { env::remove_var(key) };
     }
 }

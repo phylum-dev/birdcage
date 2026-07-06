@@ -5,9 +5,9 @@ description = "Cross-platform embeddable sandbox"
 authors = ["Phylum, Inc. <engineering@phylum.io>"]
 repository = "https://github.com/phylum-dev/birdcage"
 documentation = "https://docs.rs/birdcage"
-rust-version = "1.70.0"
+rust-version = "1.85.0"
 license = "GPL-3.0-or-later"
-edition = "2021"
+edition = "2024"
 
 [[test]]
 name = "harness"

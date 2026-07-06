@@ -233,7 +233,7 @@ fn escape_path(path: &Path) -> Result<String> {
     Ok(format!("\"{path_str}\""))
 }
 
-extern "C" {
+unsafe extern "C" {
     fn sandbox_init(profile: *const i8, flags: u64, errorbuf: *mut *mut i8) -> i32;
     fn sandbox_free_error(errorbuf: *mut i8);
 }

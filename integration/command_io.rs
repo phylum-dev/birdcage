@@ -1,8 +1,10 @@
-use std::io::Write;
-use std::os::unix::process::ExitStatusExt;
-
-use birdcage::process::{Command, Stdio};
-use birdcage::{Birdcage, Exception, Sandbox};
+#[cfg(target_os = "linux")]
+use {
+    birdcage::process::{Command, Stdio},
+    birdcage::{Birdcage, Exception, Sandbox},
+    std::io::Write,
+    std::os::unix::process::ExitStatusExt,
+};
 
 // macOs uses `std::process` and thus does not require explicit testing. This
 // allows running multiple tests in the same process rather than having to add
