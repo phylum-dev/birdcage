@@ -659,11 +659,7 @@ impl Stdio {
             },
             StdioType::Null => {
                 let null_fd = rustix::fs::open("/dev/null", OFlags::RDWR, Mode::empty())?;
-                if stdin {
-                    Ok((Some(null_fd), None))
-                } else {
-                    Ok((None, Some(null_fd)))
-                }
+                if stdin { Ok((Some(null_fd), None)) } else { Ok((None, Some(null_fd))) }
             },
         }
     }
