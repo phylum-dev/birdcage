@@ -36,7 +36,7 @@ pub fn setup(tempdir: PathBuf) -> TestSetup {
     assert!(cmd.is_ok());
 
     // Ensure non-sandboxed env access works.
-    env::set_var("TEST", "value");
+    unsafe { env::set_var("TEST", "value") };
     assert_eq!(env::var("TEST"), Ok("value".into()));
 
     // Setup birdcage sandbox.

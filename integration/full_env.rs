@@ -7,7 +7,7 @@ use crate::TestSetup;
 
 pub fn setup(_tempdir: PathBuf) -> TestSetup {
     // Setup our environment variables
-    env::set_var("PUBLIC", "GOOD");
+    unsafe { env::set_var("PUBLIC", "GOOD") };
 
     // Activate our sandbox.
     let mut sandbox = Birdcage::new();
